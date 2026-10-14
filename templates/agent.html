@@ -1,0 +1,1311 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Nexus — MMM Agent</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css" id="hljs-theme">
+<style>
+/* ═══════════════════════════════════════════════════════════════════
+   NEXUS — MMM AGENT UI
+   3-panel layout · Claude/Cursor/Devin-inspired
+   ═══════════════════════════════════════════════════════════════════ */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+/* ── Theme Tokens ── */
+[data-theme="dark"] {
+  --bg:        #0a0b10;
+  --bg2:       #0f1018;
+  --bg3:       #141620;
+  --sur:       rgba(17, 19, 28, .92);
+  --sur2:      rgba(22, 25, 38, .85);
+  --sur3:      rgba(28, 32, 48, .7);
+  --brd:       rgba(255, 255, 255, .06);
+  --brd2:      rgba(255, 255, 255, .10);
+  --brd3:      rgba(255, 255, 255, .15);
+  --tx:        #e4e8f1;
+  --tx2:       #8890a6;
+  --tx3:       #4d5468;
+  --acc:       #6c8cff;
+  --acc2:      #a78bfa;
+  --acc3:      #f472b6;
+  --grn:       #34d399;
+  --red:       #f87171;
+  --warn:      #fbbf24;
+  --orng:      #fb923c;
+  --glass:     rgba(14, 16, 24, .85);
+  --glow:      rgba(108, 140, 255, .06);
+  --sh:        0 4px 24px rgba(0,0,0,.4);
+  --code-bg:   #0c0d14;
+  --code-brd:  rgba(108, 140, 255, .10);
+  --msg-user:  rgba(108, 140, 255, .06);
+  --msg-user-brd: rgba(108, 140, 255, .12);
+  --tool-bg:   rgba(108, 140, 255, .04);
+  --tool-brd:  rgba(108, 140, 255, .10);
+}
+[data-theme="light"] {
+  --bg:        #f5f6fa;
+  --bg2:       #ffffff;
+  --bg3:       #edf0f5;
+  --sur:       rgba(255, 255, 255, .95);
+  --sur2:      rgba(248, 249, 252, .92);
+  --sur3:      rgba(240, 242, 248, .8);
+  --brd:       rgba(0, 0, 0, .06);
+  --brd2:      rgba(0, 0, 0, .10);
+  --brd3:      rgba(0, 0, 0, .15);
+  --tx:        #0f172a;
+  --tx2:       #475569;
+  --tx3:       #94a3b8;
+  --acc:       #4f6ae6;
+  --acc2:      #7c3aed;
+  --acc3:      #db2777;
+  --grn:       #059669;
+  --red:       #dc2626;
+  --warn:      #d97706;
+  --orng:      #ea580c;
+  --glass:     rgba(255, 255, 255, .88);
+  --glow:      rgba(79, 106, 230, .04);
+  --sh:        0 4px 24px rgba(0,0,0,.06);
+  --code-bg:   #f8f9fc;
+  --code-brd:  rgba(79, 106, 230, .12);
+  --msg-user:  rgba(79, 106, 230, .05);
+  --msg-user-brd: rgba(79, 106, 230, .10);
+  --tool-bg:   rgba(79, 106, 230, .03);
+  --tool-brd:  rgba(79, 106, 230, .08);
+}
+
+html, body {
+  height: 100%; overflow: hidden;
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  background: var(--bg); color: var(--tx);
+  -webkit-font-smoothing: antialiased;
+  font-size: 14px;
+}
+
+/* ── Layout Shell ── */
+.nx { display: flex; height: 100vh; width: 100vw; }
+
+/* ════════════════════════════════════════
+   SIDEBAR
+   ════════════════════════════════════════ */
+.nx-side {
+  width: 260px; background: var(--sur);
+  border-right: 1px solid var(--brd);
+  display: flex; flex-direction: column; flex-shrink: 0;
+  transition: width .25s ease, opacity .25s ease;
+  overflow: hidden;
+}
+.nx-side.collapsed { width: 0; border: none; opacity: 0; pointer-events: none; }
+
+.nx-side-hdr {
+  padding: 18px 16px; display: flex; align-items: center; gap: 12px;
+  min-width: 260px;
+}
+.nx-logo {
+  width: 36px; height: 36px; border-radius: 10px;
+  background: linear-gradient(135deg, var(--acc), var(--acc2));
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+}
+.nx-logo svg { width: 18px; height: 18px; stroke: #fff; stroke-width: 2; fill: none; }
+.nx-brand-t {
+  font-weight: 800; font-size: .9em; letter-spacing: -.02em;
+  background: linear-gradient(135deg, var(--acc), var(--acc2));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.nx-brand-s { font-size: .6em; color: var(--tx3); font-weight: 500; text-transform: uppercase; letter-spacing: .08em; margin-top: 1px; }
+
+.nx-new {
+  margin: 0 12px 12px; padding: 10px 14px; border-radius: 10px;
+  border: 1px solid var(--brd2); background: transparent;
+  color: var(--tx2); font-weight: 600; font-size: .78em; cursor: pointer;
+  display: flex; align-items: center; gap: 8px; transition: all .15s;
+  font-family: inherit; min-width: 236px;
+}
+.nx-new:hover { border-color: var(--acc); color: var(--acc); background: var(--glow); }
+.nx-new svg { width: 14px; height: 14px; stroke: currentColor; stroke-width: 2; fill: none; }
+
+.nx-hist {
+  flex: 1; overflow-y: auto; padding: 0 8px;
+  scrollbar-width: thin; scrollbar-color: var(--brd2) transparent;
+}
+.nx-hist::-webkit-scrollbar { width: 3px; }
+.nx-hist::-webkit-scrollbar-thumb { background: var(--brd2); border-radius: 3px; }
+.nx-hist-lbl {
+  font-size: .6em; font-weight: 700; color: var(--tx3);
+  text-transform: uppercase; letter-spacing: .1em; padding: 12px 8px 6px;
+}
+.nx-hist-item {
+  padding: 8px 10px; border-radius: 8px; font-size: .78em; color: var(--tx2);
+  cursor: pointer; transition: all .12s; margin-bottom: 2px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  display: flex; align-items: center; gap: 6px;
+}
+.nx-hist-item:hover { background: var(--glow); color: var(--tx); }
+.nx-hist-item.active { background: var(--glow); color: var(--acc); font-weight: 600; }
+.nx-hist-item span { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+.nx-hist-del {
+  display: none; width: 18px; height: 18px; border-radius: 4px; border: none;
+  background: transparent; color: var(--tx3); cursor: pointer;
+  align-items: center; justify-content: center; flex-shrink: 0;
+  font-size: .7em; padding: 0; transition: all .1s;
+}
+.nx-hist-item:hover .nx-hist-del { display: flex; }
+.nx-hist-del:hover { background: rgba(248,113,113,.12); color: var(--red); }
+.nx-hist-empty { font-size: .75em; color: var(--tx3); padding: 8px 10px; font-style: italic; }
+
+.nx-side-foot {
+  padding: 12px 16px; border-top: 1px solid var(--brd);
+  display: flex; align-items: center; justify-content: space-between; min-width: 260px;
+}
+.nx-conn { display: flex; align-items: center; gap: 6px; font-size: .68em; color: var(--tx3); font-weight: 500; }
+.nx-conn-dot {
+  width: 6px; height: 6px; border-radius: 50%; background: var(--grn);
+  box-shadow: 0 0 8px var(--grn); animation: pulse 2s infinite;
+}
+@keyframes pulse { 0%,100% { opacity: .7; } 50% { opacity: 1; } }
+
+/* ════════════════════════════════════════
+   MAIN AREA
+   ════════════════════════════════════════ */
+.nx-main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+
+/* Top bar */
+.nx-top {
+  height: 48px; display: flex; align-items: center; justify-content: space-between;
+  padding: 0 16px; border-bottom: 1px solid var(--brd); flex-shrink: 0;
+  background: var(--sur);
+}
+.nx-top-l { display: flex; align-items: center; gap: 10px; }
+.nx-top-r { display: flex; align-items: center; gap: 6px; }
+.nx-ibtn {
+  width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--brd);
+  background: transparent; color: var(--tx3); cursor: pointer;
+  display: flex; align-items: center; justify-content: center; transition: all .12s;
+  font-family: inherit;
+}
+.nx-ibtn:hover { background: var(--glow); border-color: var(--acc); color: var(--acc); }
+.nx-ibtn svg { width: 15px; height: 15px; stroke: currentColor; stroke-width: 1.8; fill: none; }
+.nx-top-title { font-weight: 600; font-size: .82em; color: var(--tx2); }
+
+/* Theme switcher */
+.nx-theme { display: flex; border-radius: 6px; border: 1px solid var(--brd); overflow: hidden; }
+.nx-theme button {
+  padding: 4px 10px; border: none; background: transparent; color: var(--tx3);
+  cursor: pointer; font-size: .68em; font-weight: 600; transition: all .12s; font-family: inherit;
+}
+.nx-theme button.active { background: var(--acc); color: #fff; }
+.nx-theme button:hover:not(.active) { background: var(--glow); }
+
+.nx-user {
+  display: flex; align-items: center; gap: 6px; padding: 3px 10px 3px 4px;
+  border-radius: 18px; background: var(--sur2); border: 1px solid var(--brd);
+  font-size: .72em; color: var(--tx2); font-weight: 500;
+}
+.nx-avatar {
+  width: 24px; height: 24px; border-radius: 50%;
+  background: linear-gradient(135deg, var(--acc), var(--acc2));
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: .65em; color: #fff;
+}
+
+/* ════════════════════════════════════════
+   CHAT + PREVIEW SPLIT
+   ════════════════════════════════════════ */
+.nx-body { flex: 1; display: flex; overflow: hidden; }
+
+/* Chat panel */
+.nx-chat-wrap { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+.nx-chat {
+  flex: 1; overflow-y: auto; scroll-behavior: smooth;
+  scrollbar-width: thin; scrollbar-color: var(--brd2) transparent;
+}
+.nx-chat::-webkit-scrollbar { width: 4px; }
+.nx-chat::-webkit-scrollbar-thumb { background: var(--brd2); border-radius: 4px; }
+.nx-chat-inner { max-width: 100%; margin: 0 5%; padding: 24px 0 40px; }
+
+/* ── Welcome ── */
+.nx-welcome { text-align: center; padding: clamp(30px, 8vh, 80px) 20px 40px; }
+.nx-w-icon {
+  width: 64px; height: 64px; border-radius: 18px; margin: 0 auto 24px;
+  background: linear-gradient(135deg, var(--acc), var(--acc2));
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 8px 32px rgba(108, 140, 255, .2);
+}
+.nx-w-icon svg { width: 28px; height: 28px; stroke: #fff; stroke-width: 1.5; fill: none; }
+.nx-welcome h1 {
+  font-size: 1.6em; font-weight: 800; letter-spacing: -.03em; margin-bottom: 8px;
+  background: linear-gradient(135deg, var(--acc), var(--acc2));
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+}
+.nx-welcome p { color: var(--tx2); font-size: .86em; max-width: 480px; margin: 0 auto 32px; line-height: 1.65; }
+.nx-welcome strong { color: var(--acc); font-weight: 600; }
+
+.nx-grid {
+  display: grid; grid-template-columns: repeat(3, 1fr);
+  gap: 10px; max-width: 620px; margin: 0 auto;
+}
+.nx-card {
+  padding: 14px; border-radius: 12px; border: 1px solid var(--brd);
+  background: var(--sur2); cursor: pointer; text-align: left;
+  transition: all .2s ease; font-family: inherit;
+}
+.nx-card:hover {
+  border-color: var(--acc); background: var(--glow);
+  transform: translateY(-2px); box-shadow: 0 6px 20px rgba(108,140,255,.08);
+}
+.nx-card-icon { font-size: 1.2em; margin-bottom: 8px; }
+.nx-card-t { font-weight: 600; font-size: .78em; color: var(--tx); margin-bottom: 3px; }
+.nx-card-d { font-size: .65em; color: var(--tx3); line-height: 1.4; }
+
+/* ── Messages ── */
+.nx-msg { display: flex; gap: 12px; margin-bottom: 24px; animation: fadeIn .3s ease; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+
+.nx-msg-av {
+  width: 30px; height: 30px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700; font-size: .65em; margin-top: 2px;
+}
+.nx-msg-u .nx-msg-av { background: var(--sur3); border: 1px solid var(--brd2); color: var(--acc); }
+.nx-msg-b .nx-msg-av {
+  background: linear-gradient(135deg, var(--acc), var(--acc2)); color: #fff;
+  box-shadow: 0 2px 10px rgba(108,140,255,.2);
+}
+.nx-msg-b .nx-msg-av svg { width: 14px; height: 14px; stroke: #fff; stroke-width: 2; fill: none; }
+
+.nx-msg-bd { flex: 1; min-width: 0; }
+.nx-msg-u .nx-msg-bd {
+  background: var(--msg-user); border: 1px solid var(--msg-user-brd);
+  border-radius: 16px 16px 16px 4px; padding: 12px 16px;
+  font-size: .86em; line-height: 1.65;
+}
+.nx-msg-b .nx-msg-bd { font-size: .86em; line-height: 1.7; }
+.nx-msg-b .nx-msg-bd p { margin: 6px 0; }
+.nx-msg-b .nx-msg-bd ul, .nx-msg-b .nx-msg-bd ol { padding-left: 22px; margin: 8px 0; }
+.nx-msg-b .nx-msg-bd li { margin: 4px 0; }
+.nx-msg-b .nx-msg-bd a { color: var(--acc); text-decoration: none; }
+.nx-msg-b .nx-msg-bd a:hover { text-decoration: underline; }
+.nx-msg-b .nx-msg-bd strong { font-weight: 600; }
+.nx-msg-b .nx-msg-bd h1,
+.nx-msg-b .nx-msg-bd h2,
+.nx-msg-b .nx-msg-bd h3,
+.nx-msg-b .nx-msg-bd h4 { color: var(--tx); font-weight: 700; margin: 18px 0 8px; }
+.nx-msg-b .nx-msg-bd h1 { font-size: 1.3em; }
+.nx-msg-b .nx-msg-bd h2 { font-size: 1.15em; }
+.nx-msg-b .nx-msg-bd h3 { font-size: 1.02em; }
+.nx-msg-b .nx-msg-bd h4 { font-size: .92em; }
+.nx-msg-b .nx-msg-bd h1:first-child,
+.nx-msg-b .nx-msg-bd h2:first-child,
+.nx-msg-b .nx-msg-bd h3:first-child { margin-top: 4px; }
+.nx-msg-b .nx-msg-bd hr {
+  border: none; height: 1px; background: var(--brd2); margin: 16px 0;
+}
+.nx-msg-b .nx-msg-bd blockquote {
+  border-left: 3px solid var(--acc); padding: 8px 14px; margin: 10px 0;
+  background: var(--glow); border-radius: 0 8px 8px 0; color: var(--tx2);
+}
+.nx-msg-b .nx-msg-bd table {
+  width: 100%; border-collapse: collapse; font-size: .9em; margin: 10px 0;
+}
+.nx-msg-b .nx-msg-bd th {
+  text-align: left; padding: 8px 12px; background: var(--sur3);
+  color: var(--tx2); font-size: .78em; text-transform: uppercase;
+  letter-spacing: .03em; border-bottom: 1px solid var(--brd2);
+}
+.nx-msg-b .nx-msg-bd td {
+  padding: 7px 12px; border-bottom: 1px solid var(--brd);
+}
+.nx-msg-b .nx-msg-bd code:not(pre code) {
+  background: var(--sur3); padding: 1px 6px; border-radius: 4px;
+  font-family: 'JetBrains Mono', monospace; font-size: .88em;
+}
+.nx-msg-b .nx-msg-bd em { font-style: italic; color: var(--tx2); }
+
+/* ── Tool Call Accordion ── */
+.nx-tools { margin: 8px 0 12px; }
+.nx-tool {
+  border: 1px solid var(--tool-brd); border-radius: 10px;
+  background: var(--tool-bg); margin-bottom: 6px; overflow: hidden;
+  transition: all .15s;
+}
+.nx-tool-hdr {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px; cursor: pointer; user-select: none; font-size: .78em;
+}
+.nx-tool-hdr:hover { background: var(--glow); }
+.nx-tool-arrow {
+  width: 14px; height: 14px; stroke: var(--tx3); stroke-width: 2; fill: none;
+  transition: transform .2s; flex-shrink: 0;
+}
+.nx-tool.open .nx-tool-arrow { transform: rotate(90deg); }
+.nx-tool-name { font-weight: 600; color: var(--acc); }
+.nx-tool-args { color: var(--tx3); flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nx-tool-status {
+  width: 18px; height: 18px; border-radius: 50%; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+}
+.nx-tool-status.done { background: rgba(52, 211, 153, .12); }
+.nx-tool-status.done svg { width: 11px; height: 11px; stroke: var(--grn); stroke-width: 2.5; fill: none; }
+.nx-tool-body {
+  display: none; padding: 0 12px 10px; font-size: .75em;
+  font-family: 'JetBrains Mono', monospace; color: var(--tx2);
+  max-height: 200px; overflow-y: auto; white-space: pre-wrap; word-break: break-all;
+}
+.nx-tool.open .nx-tool-body { display: block; }
+
+/* ── Code Blocks ── */
+.nx-code-wrap {
+  position: relative; margin: 10px 0; border-radius: 10px; overflow: hidden;
+  border: 1px solid var(--code-brd); background: var(--code-bg);
+}
+.nx-code-top {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 6px 12px; background: rgba(108,140,255,.04);
+  border-bottom: 1px solid var(--code-brd);
+}
+.nx-code-lang {
+  font-size: .65em; font-weight: 700; text-transform: uppercase;
+  letter-spacing: .06em; color: var(--tx3);
+}
+.nx-code-copy {
+  font-size: .65em; font-weight: 600; color: var(--tx3); background: transparent;
+  border: 1px solid var(--brd2); border-radius: 5px; padding: 2px 8px;
+  cursor: pointer; font-family: inherit; transition: all .12s;
+}
+.nx-code-copy:hover { color: var(--acc); border-color: var(--acc); }
+.nx-code-copy.copied { color: var(--grn); border-color: var(--grn); }
+.nx-code-wrap pre { padding: 14px 16px; overflow-x: auto; margin: 0; background: transparent; }
+.nx-code-wrap code { font-family: 'JetBrains Mono', monospace; font-size: .85em; }
+
+/* ── Report Card ── */
+.nx-report {
+  margin: 12px 0; padding: 16px 18px; border-radius: 12px;
+  border: 1px solid rgba(52, 211, 153, .2);
+  background: rgba(52, 211, 153, .04);
+  display: flex; align-items: center; justify-content: space-between; gap: 12px;
+}
+.nx-report-info { flex: 1; }
+.nx-report-info strong { color: var(--grn); font-size: .88em; }
+.nx-report-info .nx-report-meta { font-size: .72em; color: var(--tx3); margin-top: 2px; }
+.nx-report-btns { display: flex; gap: 6px; flex-shrink: 0; }
+.nx-rbtn {
+  padding: 7px 14px; border-radius: 8px; font-size: .75em; font-weight: 600;
+  cursor: pointer; font-family: inherit; transition: all .12s;
+  border: 1px solid var(--brd2); background: var(--sur); color: var(--tx);
+}
+.nx-rbtn:hover { border-color: var(--acc); color: var(--acc); }
+.nx-rbtn.pri {
+  background: linear-gradient(135deg, var(--grn), #059669); color: #fff; border: none;
+}
+.nx-rbtn.pri:hover { opacity: .9; box-shadow: 0 4px 16px rgba(52,211,153,.25); }
+
+/* ── Sources ── */
+.nx-sources { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 10px; }
+.nx-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 10px; border-radius: 16px; font-size: .65em; font-weight: 600;
+}
+.nx-chip-src { background: rgba(52,211,153,.06); color: var(--grn); border: 1px solid rgba(52,211,153,.15); }
+
+/* ── Error ── */
+.nx-err {
+  padding: 12px 16px; border-radius: 10px;
+  background: rgba(248,113,113,.05); border: 1px solid rgba(248,113,113,.15);
+  border-left: 3px solid var(--red); color: var(--red); font-size: .82em;
+}
+
+/* ── Thinking Skeleton ── */
+.nx-think {
+  display: flex; align-items: center; gap: 10px; padding: 12px 0;
+}
+.nx-think-dots {
+  display: flex; gap: 4px;
+}
+.nx-think-dots i {
+  width: 6px; height: 6px; border-radius: 50%; background: var(--acc);
+  animation: dotPulse 1.2s infinite; display: block;
+}
+.nx-think-dots i:nth-child(2) { animation-delay: .15s; }
+.nx-think-dots i:nth-child(3) { animation-delay: .3s; }
+@keyframes dotPulse { 0%,80%,100% { transform: scale(.5); opacity: .3; } 40% { transform: scale(1); opacity: 1; } }
+.nx-think-label { font-size: .72em; color: var(--tx3); font-weight: 500; }
+.nx-think-timer { font-size: .65em; color: var(--tx3); font-family: 'JetBrains Mono', monospace; }
+
+/* Typing cursor */
+.nx-stream { white-space: pre-wrap; word-break: break-word; }
+.nx-stream::after { content: '▌'; color: var(--acc); animation: blink .6s step-end infinite; font-weight: 300; }
+@keyframes blink { 0%,100% { opacity: 1; } 50% { opacity: 0; } }
+
+/* ════════════════════════════════════════
+   PREVIEW PANEL (right side)
+   ════════════════════════════════════════ */
+.nx-preview {
+  width: 0; border-left: 1px solid var(--brd); background: var(--bg2);
+  display: flex; flex-direction: column; overflow: hidden;
+  transition: width .3s ease;
+}
+.nx-preview.open { width: 460px; }
+
+.nx-preview-top {
+  height: 48px; display: flex; align-items: center; justify-content: space-between;
+  padding: 0 14px; border-bottom: 1px solid var(--brd); flex-shrink: 0;
+}
+.nx-preview-tabs { display: flex; gap: 2px; }
+.nx-preview-tab {
+  padding: 5px 12px; border-radius: 6px; border: none; background: transparent;
+  color: var(--tx3); font-size: .72em; font-weight: 600; cursor: pointer;
+  font-family: inherit; transition: all .12s;
+}
+.nx-preview-tab.active { background: var(--glow); color: var(--acc); }
+.nx-preview-tab:hover:not(.active) { color: var(--tx2); }
+
+.nx-preview-actions { display: flex; gap: 4px; }
+
+.nx-preview-body { flex: 1; overflow: hidden; position: relative; }
+.nx-preview-body iframe {
+  width: 100%; height: 100%; border: none; background: #fff;
+}
+.nx-preview-code {
+  display: none; width: 100%; height: 100%; overflow: auto;
+  padding: 16px; font-family: 'JetBrains Mono', monospace; font-size: .78em;
+  color: var(--tx2); white-space: pre-wrap; word-break: break-all;
+  background: var(--code-bg);
+}
+
+/* ════════════════════════════════════════
+   INPUT AREA
+   ════════════════════════════════════════ */
+.nx-inp {
+  padding: 12px 20px 16px; border-top: 1px solid var(--brd);
+  background: var(--sur); flex-shrink: 0;
+}
+.nx-inp-inner { max-width: 100%; margin: 0 5%; }
+.nx-inp-box {
+  display: flex; align-items: flex-end; gap: 8px;
+  background: var(--bg3); border: 1.5px solid var(--brd2);
+  border-radius: 14px; padding: 8px 8px 8px 16px; transition: all .2s;
+}
+.nx-inp-box:focus-within { border-color: var(--acc); box-shadow: 0 0 0 3px var(--glow); }
+
+.nx-inp-box textarea {
+  flex: 1; background: transparent; border: none; color: var(--tx);
+  font-family: 'Inter', sans-serif; font-size: .86em; resize: none;
+  min-height: 22px; max-height: 150px; line-height: 1.5; outline: none;
+}
+.nx-inp-box textarea::placeholder { color: var(--tx3); }
+
+.nx-send {
+  width: 34px; height: 34px; border-radius: 10px; border: none; cursor: pointer;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  transition: all .15s;
+  background: linear-gradient(135deg, var(--acc), var(--acc2));
+}
+.nx-send:disabled { opacity: .15; cursor: not-allowed; }
+.nx-send:not(:disabled):hover { box-shadow: 0 4px 14px rgba(108,140,255,.3); transform: scale(1.05); }
+.nx-send svg { width: 15px; height: 15px; stroke: #fff; stroke-width: 2; fill: none; }
+
+.nx-stop {
+  display: none; width: 34px; height: 34px; border-radius: 10px;
+  border: 1px solid var(--red); background: rgba(248,113,113,.08);
+  color: var(--red); cursor: pointer; align-items: center; justify-content: center;
+  flex-shrink: 0; transition: all .12s;
+}
+.nx-stop.active { display: flex; }
+.nx-stop:hover { background: rgba(248,113,113,.15); }
+.nx-stop svg { width: 13px; height: 13px; fill: var(--red); stroke: none; }
+
+.nx-inp-hint {
+  font-size: .62em; color: var(--tx3); margin-top: 6px; text-align: center; letter-spacing: .02em;
+}
+
+/* ── File Upload ── */
+.nx-attach {
+  width: 34px; height: 34px; border-radius: 10px; border: 1px solid var(--brd2);
+  background: transparent; color: var(--tx3); cursor: pointer;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  transition: all .12s;
+}
+.nx-attach:hover { border-color: var(--acc); color: var(--acc); background: var(--glow); }
+.nx-attach svg { width: 15px; height: 15px; stroke: currentColor; stroke-width: 2; fill: none; }
+
+.nx-attached {
+  display: none; align-items: center; gap: 6px; margin-bottom: 6px;
+}
+.nx-attached.show { display: flex; }
+.nx-file-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 5px 10px 5px 8px; border-radius: 8px; font-size: .72em; font-weight: 500;
+  background: rgba(108, 140, 255, .06); border: 1px solid rgba(108, 140, 255, .15);
+  color: var(--acc); max-width: 300px;
+}
+.nx-file-chip svg { width: 14px; height: 14px; stroke: currentColor; stroke-width: 2; fill: none; flex-shrink: 0; }
+.nx-file-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.nx-file-chip .nx-file-meta { color: var(--tx3); font-size: .9em; }
+.nx-file-rm {
+  width: 16px; height: 16px; border-radius: 50%; border: none;
+  background: rgba(248,113,113,.1); color: var(--red); cursor: pointer;
+  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  font-size: .7em; line-height: 1; transition: all .12s; padding: 0;
+}
+.nx-file-rm:hover { background: rgba(248,113,113,.2); }
+
+.nx-dropzone {
+  display: none; position: fixed; inset: 0; z-index: 300;
+  background: rgba(10, 11, 16, .85); backdrop-filter: blur(8px);
+  align-items: center; justify-content: center;
+}
+.nx-dropzone.show { display: flex; }
+.nx-dropzone-inner {
+  padding: 48px 60px; border-radius: 20px;
+  border: 2px dashed var(--acc); background: var(--sur);
+  text-align: center;
+}
+.nx-dropzone-inner svg { width: 48px; height: 48px; stroke: var(--acc); stroke-width: 1.5; fill: none; margin-bottom: 16px; }
+.nx-dropzone-inner h3 { color: var(--tx); font-size: 1.1em; margin-bottom: 6px; }
+.nx-dropzone-inner p { color: var(--tx3); font-size: .82em; }
+
+/* ── Responsive ── */
+@media (max-width: 1100px) { .nx-preview.open { width: 380px; } }
+@media (max-width: 900px) {
+  .nx-preview.open { width: 100%; position: fixed; inset: 0; z-index: 200; }
+  .nx-grid { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 768px) {
+  .nx-side { position: fixed; z-index: 100; height: 100%; box-shadow: var(--sh); }
+  .nx-side.collapsed { width: 0; }
+  .nx-grid { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 480px) { .nx-grid { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<div class="nx">
+
+  <!-- ═══ SIDEBAR ═══ -->
+  <aside class="nx-side" id="sidebar">
+    <div class="nx-side-hdr">
+      <div class="nx-logo">
+        <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+      </div>
+      <div>
+        <div class="nx-brand-t">Nexus Agent</div>
+        <div class="nx-brand-s">MMM Report Platform</div>
+      </div>
+    </div>
+    <button class="nx-new" onclick="newChat()">
+      <svg viewBox="0 0 24 24"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      New Conversation
+    </button>
+    <div class="nx-hist">
+      <div class="nx-hist-lbl">Today</div>
+      <div id="histList"><div class="nx-hist-empty">No conversations yet</div></div>
+    </div>
+    <div class="nx-side-foot">
+      <div class="nx-conn"><span class="nx-conn-dot"></span> Cortex GPT-4o</div>
+      <a href="/logout" class="nx-ibtn" title="Logout" style="text-decoration:none;width:26px;height:26px;border-radius:7px">
+        <svg viewBox="0 0 24 24" style="width:13px;height:13px"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      </a>
+    </div>
+  </aside>
+
+  <!-- ═══ MAIN ═══ -->
+  <div class="nx-main">
+    <div class="nx-top">
+      <div class="nx-top-l">
+        <button class="nx-ibtn" onclick="document.getElementById('sidebar').classList.toggle('collapsed')">
+          <svg viewBox="0 0 24 24"><path d="M3 12h18M3 6h18M3 18h18"/></svg>
+        </button>
+        <span class="nx-top-title">MMM Report Agent</span>
+      </div>
+      <div class="nx-top-r">
+        <div class="nx-theme" id="themeSwitcher">
+          <button onclick="setTheme('light')" title="Light">Light</button>
+          <button class="active" onclick="setTheme('dark')" title="Dark">Dark</button>
+        </div>
+        <button class="nx-ibtn" onclick="exportChat()" title="Export chat">
+          <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        </button>
+        <div class="nx-user">
+          <span class="nx-avatar">{{ user_email[0]|upper }}</span>
+          {{ user_email.split('@')[0] }}
+        </div>
+      </div>
+    </div>
+
+    <div class="nx-body">
+      <!-- Chat panel -->
+      <div class="nx-chat-wrap">
+        <div class="nx-chat" id="chatScroll">
+          <div class="nx-chat-inner" id="chatInner">
+            <div class="nx-welcome" id="welcome">
+              <div class="nx-w-icon">
+                <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+              </div>
+              <h1>MMM Report Agent</h1>
+              <p>I maintain the <strong>mmm_report</strong> package — generate reports, edit code, create new report types, and push to git.</p>
+              <div class="nx-grid">
+                <button class="nx-card" onclick="send('Generate an executive report')">
+                  <div class="nx-card-icon">📊</div>
+                  <div class="nx-card-t">Executive Report</div>
+                  <div class="nx-card-d">KPIs, revenue by region, summary</div>
+                </button>
+                <button class="nx-card" onclick="send('Generate a sales report')">
+                  <div class="nx-card-icon">💰</div>
+                  <div class="nx-card-t">Sales Report</div>
+                  <div class="nx-card-d">Regions, countries, product revenue</div>
+                </button>
+                <button class="nx-card" onclick="send('Generate a channel report')">
+                  <div class="nx-card-icon">📡</div>
+                  <div class="nx-card-t">Channel Report</div>
+                  <div class="nx-card-d">Marketing spend, ROI analysis</div>
+                </button>
+                <button class="nx-card" onclick="send('List all available report types')">
+                  <div class="nx-card-icon">📋</div>
+                  <div class="nx-card-t">All Report Types</div>
+                  <div class="nx-card-d">See the full catalog</div>
+                </button>
+                <button class="nx-card" onclick="send('Show me the package structure')">
+                  <div class="nx-card-icon">📁</div>
+                  <div class="nx-card-t">Package Structure</div>
+                  <div class="nx-card-d">List all files in the repo</div>
+                </button>
+                <button class="nx-card" onclick="send('Show git status')">
+                  <div class="nx-card-icon">🔀</div>
+                  <div class="nx-card-t">Git Status</div>
+                  <div class="nx-card-d">Branch, changes, recent commits</div>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="nx-inp">
+          <div class="nx-inp-inner">
+            <div class="nx-attached" id="attachedBar">
+              <div class="nx-file-chip" id="fileChip">
+                <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg>
+                <span id="fileName">file.csv</span>
+                <span class="nx-file-meta" id="fileMeta"></span>
+                <button class="nx-file-rm" onclick="removeFile()" title="Remove">&times;</button>
+              </div>
+            </div>
+            <div class="nx-inp-box">
+              <button class="nx-attach" onclick="document.getElementById('fileInput').click()" title="Upload CSV or RDS">
+                <svg viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
+              </button>
+              <input type="file" id="fileInput" accept=".csv,.rds" style="display:none" onchange="handleFileSelect(this)">
+              <textarea id="chatInput" placeholder="Generate a report, edit code, or ask anything..." rows="1"
+                        onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send()}"
+                        oninput="autoGrow(this);document.getElementById('sendBtn').disabled=!this.value.trim()&amp;&amp;!uploadedFileId"></textarea>
+              <button class="nx-stop" id="stopBtn" onclick="stopStream()" title="Stop generating">
+                <svg viewBox="0 0 24 24"><rect x="6" y="6" width="12" height="12" rx="2"/></svg>
+              </button>
+              <button class="nx-send" id="sendBtn" disabled onclick="send()">
+                <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+              </button>
+            </div>
+            <div class="nx-inp-hint">Enter to send · Shift+Enter for new line · Attach .csv or .rds files · 16 tools</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Preview panel -->
+      <div class="nx-preview" id="previewPanel">
+        <div class="nx-preview-top">
+          <div class="nx-preview-tabs">
+            <button class="nx-preview-tab active" onclick="showPreviewTab('preview')">Preview</button>
+            <button class="nx-preview-tab" onclick="showPreviewTab('code')">HTML</button>
+          </div>
+          <div class="nx-preview-actions">
+            <button class="nx-ibtn" onclick="openPreviewNewTab()" title="Open in new tab">
+              <svg viewBox="0 0 24 24"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+            </button>
+            <button class="nx-ibtn" onclick="downloadPreview()" title="Download HTML">
+              <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            </button>
+            <button class="nx-ibtn" onclick="closePreview()" title="Close panel">
+              <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+          </div>
+        </div>
+        <div class="nx-preview-body">
+          <iframe id="previewFrame"></iframe>
+          <div class="nx-preview-code" id="previewCode"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Drag and drop overlay -->
+<div class="nx-dropzone" id="dropzone">
+  <div class="nx-dropzone-inner">
+    <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+    <h3>Drop your file here</h3>
+    <p>Supports .csv and .rds files</p>
+  </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/highlight.min.js"></script>
+<script>
+
+/* ═══════════════════════════════════════════════
+   THEME
+   ═══════════════════════════════════════════════ */
+function setTheme(t) {
+  if (t === 'system') t = window.matchMedia('(prefers-color-scheme:dark)').matches ? 'dark' : 'light';
+  document.documentElement.setAttribute('data-theme', t);
+  localStorage.setItem('mmm-theme', t);
+  document.querySelectorAll('.nx-theme button').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.nx-theme button').forEach(b => { if (b.textContent.toLowerCase() === t) b.classList.add('active'); });
+  const link = document.getElementById('hljs-theme');
+  link.href = t === 'light'
+    ? 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github.min.css'
+    : 'https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.9.0/styles/github-dark.min.css';
+}
+(function() {
+  const s = localStorage.getItem('mmm-theme');
+  if (s === 'light') setTheme('light');
+  else if (!s) { setTheme(window.matchMedia('(prefers-color-scheme:dark)').matches ? 'dark' : 'light'); }
+})();
+
+/* ═══════════════════════════════════════════════
+   CHAT STATE
+   ═══════════════════════════════════════════════ */
+const hist = [];
+const inner = document.getElementById('chatInner');
+const scr = document.getElementById('chatScroll');
+let abortCtrl = null;
+let previewHtml = null;
+let thinkTimer = null;
+let uploadedFileId = null;
+let uploadedFileName = null;
+let uploadedFileMeta = null;
+let sessionId = null;
+let conversations = {};
+
+function initSession() {
+  conversations = JSON.parse(localStorage.getItem('nx-conversations') || '{}');
+  sessionId = localStorage.getItem('nx-active-session');
+  if (sessionId && conversations[sessionId]) {
+    const conv = conversations[sessionId];
+    hist.push(...conv.messages);
+    const w = document.getElementById('welcome'); if (w) w.remove();
+    conv.messages.forEach(m => {
+      if (m.role === 'user') {
+        addMsg('u', m.content, false);
+      } else {
+        addMsg('b', m.content, true);
+        if (m.reports && m.reports.length > 0) {
+          const lastRow = inner.querySelector('.nx-msg:last-child .nx-msg-bd');
+          if (lastRow) {
+            m.reports.forEach(r => {
+              const rpt = document.createElement('div'); rpt.className = 'nx-report';
+              const typeName = r.report_type.charAt(0).toUpperCase() + r.report_type.slice(1);
+              rpt.innerHTML =
+                '<div class="nx-report-info">' +
+                  '<strong>' + esc(typeName) + ' Report</strong>' +
+                  '<div class="nx-report-meta">' + (r.size_bytes || 0).toLocaleString() + ' bytes</div>' +
+                '</div>' +
+                '<div class="nx-report-btns">' +
+                  '<button class="nx-rbtn" onclick="openInPreview(\'' + r.preview_url + '\')">Preview</button>' +
+                  '<button class="nx-rbtn" onclick="window.open(\'' + r.preview_url + '\',\'_blank\')">New Tab</button>' +
+                  '<button class="nx-rbtn pri" onclick="window.location.href=\'' + r.download_url + '\'">Download</button>' +
+                '</div>';
+              lastRow.appendChild(rpt);
+            });
+          }
+        }
+      }
+    });
+  } else {
+    sessionId = crypto.randomUUID();
+    localStorage.setItem('nx-active-session', sessionId);
+  }
+  renderSidebar();
+}
+
+function saveSession() {
+  if (!conversations[sessionId]) {
+    conversations[sessionId] = {
+      id: sessionId,
+      title: hist.length > 0 ? hist[0].content.slice(0, 50) : 'New chat',
+      created: Date.now(),
+      messages: [],
+    };
+  }
+  conversations[sessionId].messages = hist.slice();
+  conversations[sessionId].updated = Date.now();
+  localStorage.setItem('nx-conversations', JSON.stringify(conversations));
+  renderSidebar();
+}
+
+function renderSidebar() {
+  const list = document.getElementById('histList');
+  const entries = Object.values(conversations).sort((a, b) => (b.updated || b.created) - (a.updated || a.created));
+  if (entries.length === 0) {
+    list.innerHTML = '<div class="nx-hist-empty">No conversations yet</div>';
+    return;
+  }
+  list.innerHTML = '';
+  entries.forEach(c => {
+    const el = document.createElement('div');
+    el.className = 'nx-hist-item' + (c.id === sessionId ? ' active' : '');
+    const label = document.createElement('span');
+    label.textContent = c.title || 'New chat';
+    label.onclick = () => switchSession(c.id);
+    const del = document.createElement('button');
+    del.className = 'nx-hist-del';
+    del.innerHTML = '&times;';
+    del.title = 'Delete';
+    del.onclick = (e) => { e.stopPropagation(); deleteChat(c.id); };
+    el.appendChild(label);
+    el.appendChild(del);
+    list.appendChild(el);
+  });
+}
+
+function deleteChat(id) {
+  delete conversations[id];
+  localStorage.setItem('nx-conversations', JSON.stringify(conversations));
+  if (id === sessionId) {
+    const remaining = Object.keys(conversations);
+    if (remaining.length > 0) {
+      switchSession(remaining[0]);
+    } else {
+      sessionId = crypto.randomUUID();
+      localStorage.setItem('nx-active-session', sessionId);
+      hist.length = 0;
+      inner.innerHTML = '';
+      closePreview();
+      location.reload();
+    }
+  } else {
+    renderSidebar();
+  }
+}
+
+function switchSession(id) {
+  if (id === sessionId) return;
+  saveSession();
+  localStorage.setItem('nx-active-session', id);
+  location.reload();
+}
+
+function newChat() {
+  saveSession();
+  sessionId = crypto.randomUUID();
+  localStorage.setItem('nx-active-session', sessionId);
+  hist.length = 0;
+  inner.innerHTML = '';
+  closePreview();
+  location.reload();
+}
+
+initSession();
+
+function autoGrow(el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 150) + 'px'; }
+
+function send(text) {
+  const inp = document.getElementById('chatInput');
+  let msg = text || inp.value.trim();
+  if (!msg && !uploadedFileId) return;
+
+  if (uploadedFileId) {
+    const fileSuffix = '\n\n[Attached file: ' + uploadedFileName + ' (file_id: ' + uploadedFileId + ', ' + uploadedFileMeta + ')]';
+    if (msg) msg += fileSuffix;
+    else msg = 'I uploaded a file: ' + uploadedFileName + fileSuffix;
+    removeFile();
+  }
+
+  inp.value = ''; inp.style.height = 'auto';
+  document.getElementById('sendBtn').disabled = true;
+  const w = document.getElementById('welcome'); if (w) w.remove();
+  addMsg('u', msg);
+  hist.push({ role: 'user', content: msg });
+  saveSession();
+  const thEl = addThink();
+  doStream(msg, thEl);
+}
+
+/* ═══════════════════════════════════════════════
+   STREAMING SSE
+   ═══════════════════════════════════════════════ */
+async function doStream(msg, thEl) {
+  let botRow = null, botBd = null, textSpan = null, rawText = '', fullRaw = '';
+  let reportEvents = [];
+  abortCtrl = new AbortController();
+  document.getElementById('stopBtn').classList.add('active');
+  document.getElementById('sendBtn').style.display = 'none';
+
+  function ensureBotRow() {
+    if (!botRow) {
+      thEl.remove(); clearInterval(thinkTimer);
+      botRow = document.createElement('div'); botRow.className = 'nx-msg nx-msg-b';
+      const av = document.createElement('div'); av.className = 'nx-msg-av';
+      av.innerHTML = '<svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>';
+      botBd = document.createElement('div'); botBd.className = 'nx-msg-bd';
+      botRow.appendChild(av); botRow.appendChild(botBd);
+      inner.appendChild(botRow);
+    }
+  }
+  function ensureTextSpan() {
+    if (!textSpan) {
+      textSpan = document.createElement('span'); textSpan.className = 'nx-stream';
+      botBd.appendChild(textSpan);
+    }
+  }
+  function finalizeText() {
+    if (textSpan && rawText) {
+      const wrapper = document.createElement('div'); wrapper.innerHTML = md(rawText);
+      textSpan.replaceWith(wrapper);
+      textSpan = null; rawText = '';
+    }
+  }
+
+  try {
+    let res = null;
+    let lastErr = null;
+    const MAX_RETRIES = 3;
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+      try {
+        res = await fetch('/api/agent/stream', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ message: msg, history: hist.slice(-10), session_id: sessionId }),
+          signal: abortCtrl.signal,
+        });
+        lastErr = null;
+        break;
+      } catch (fetchErr) {
+        if (fetchErr.name === 'AbortError') throw fetchErr;
+        lastErr = fetchErr;
+        if (attempt < MAX_RETRIES) {
+          const el = document.getElementById('thinkTime');
+          if (el) el.textContent = 'retrying (' + attempt + '/' + MAX_RETRIES + ')...';
+          await new Promise(r => setTimeout(r, 1500 * attempt));
+        }
+      }
+    }
+    if (lastErr) throw lastErr;
+
+    if (!res.ok) {
+      thEl.remove(); clearInterval(thinkTimer);
+      const err = await res.json().catch(() => ({ error: 'Request failed' }));
+      addMsg('b', '<div class="nx-err">' + esc(err.error || 'Request failed') + '</div>', true);
+      resetInput(); return;
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+
+      for (const line of lines) {
+        if (!line.startsWith('data: ')) continue;
+        let evt;
+        try { evt = JSON.parse(line.slice(6)); } catch { continue; }
+
+        if (evt.type === 'tools') {
+          ensureBotRow();
+          const toolsDiv = document.createElement('div'); toolsDiv.className = 'nx-tools';
+          evt.tools.forEach(tc => {
+            const tool = document.createElement('div'); tool.className = 'nx-tool';
+            const argsStr = tc.args ? Object.values(tc.args).filter(v=>v).join(' · ').slice(0,60) : '';
+            tool.innerHTML =
+              '<div class="nx-tool-hdr" onclick="this.parentElement.classList.toggle(\'open\')">' +
+                '<svg class="nx-tool-arrow" viewBox="0 0 24 24"><polyline points="9 18 15 12 9 6"/></svg>' +
+                '<span class="nx-tool-name">' + esc(tc.tool) + '</span>' +
+                '<span class="nx-tool-args">' + esc(argsStr) + '</span>' +
+                '<span class="nx-tool-status done"><svg viewBox="0 0 24 24"><polyline points="20 6 9 17 4 12"/></svg></span>' +
+              '</div>' +
+              '<div class="nx-tool-body">' + esc(tc.result_preview || '(no output)') + '</div>';
+            toolsDiv.appendChild(tool);
+          });
+          botBd.appendChild(toolsDiv);
+        }
+
+        else if (evt.type === 'word') {
+          ensureBotRow(); ensureTextSpan();
+          rawText += evt.content;
+          textSpan.textContent = rawText;
+          scr.scrollTop = scr.scrollHeight;
+        }
+
+        else if (evt.type === 'text_end') { finalizeText(); }
+
+        else if (evt.type === 'code') {
+          ensureBotRow(); finalizeText();
+          const wrap = document.createElement('div'); wrap.className = 'nx-code-wrap';
+          const lang = evt.language || 'text';
+          wrap.innerHTML =
+            '<div class="nx-code-top">' +
+              '<span class="nx-code-lang">' + esc(lang) + '</span>' +
+              '<button class="nx-code-copy" onclick="copyCode(this)">Copy</button>' +
+            '</div>' +
+            '<pre><code class="language-' + esc(lang) + '"></code></pre>';
+          wrap.querySelector('code').textContent = evt.content;
+          botBd.appendChild(wrap);
+          if (typeof hljs !== 'undefined') hljs.highlightElement(wrap.querySelector('code'));
+        }
+
+        else if (evt.type === 'error') {
+          ensureBotRow(); finalizeText();
+          const errDiv = document.createElement('div'); errDiv.className = 'nx-err';
+          errDiv.textContent = evt.content; botBd.appendChild(errDiv);
+        }
+
+        else if (evt.type === 'sources') {
+          ensureBotRow(); finalizeText();
+          const srcDiv = document.createElement('div'); srcDiv.className = 'nx-sources';
+          evt.sources.forEach(s => {
+            const chip = document.createElement('span');
+            chip.className = 'nx-chip nx-chip-src'; chip.textContent = s.value;
+            srcDiv.appendChild(chip);
+          });
+          botBd.appendChild(srcDiv);
+        }
+
+        else if (evt.type === 'report') {
+          ensureBotRow(); finalizeText();
+          reportEvents.push({ report_type: evt.report_type, size_bytes: evt.size_bytes, preview_url: evt.preview_url, download_url: evt.download_url });
+          const rpt = document.createElement('div'); rpt.className = 'nx-report';
+          const typeName = evt.report_type.charAt(0).toUpperCase() + evt.report_type.slice(1);
+          rpt.innerHTML =
+            '<div class="nx-report-info">' +
+              '<strong>' + esc(typeName) + ' Report</strong>' +
+              '<div class="nx-report-meta">' + evt.size_bytes.toLocaleString() + ' bytes</div>' +
+            '</div>' +
+            '<div class="nx-report-btns">' +
+              '<button class="nx-rbtn" onclick="openInPreview(\'' + evt.preview_url + '\')">Preview</button>' +
+              '<button class="nx-rbtn" onclick="window.open(\'' + evt.preview_url + '\',\'_blank\')">New Tab</button>' +
+              '<button class="nx-rbtn pri" onclick="window.location.href=\'' + evt.download_url + '\'">Download</button>' +
+            '</div>';
+          botBd.appendChild(rpt);
+          scr.scrollTop = scr.scrollHeight;
+          openInPreview(evt.preview_url);
+        }
+
+        else if (evt.type === 'done') {
+          finalizeText();
+          fullRaw = evt.raw_content || rawText;
+        }
+      }
+    }
+
+    finalizeText();
+    const entry = { role: 'assistant', content: fullRaw };
+    if (reportEvents.length > 0) entry.reports = reportEvents;
+    hist.push(entry);
+    saveSession();
+    if (botBd) botBd.querySelectorAll('.nx-code-wrap code').forEach(el => {
+      if (typeof hljs !== 'undefined') hljs.highlightElement(el);
+    });
+
+  } catch (e) {
+    if (e.name !== 'AbortError') {
+      thEl.remove(); clearInterval(thinkTimer);
+      addMsg('b', '<div class="nx-err">' + esc(e.message) + '</div>', true);
+    }
+  }
+  resetInput();
+}
+
+function stopStream() {
+  if (abortCtrl) abortCtrl.abort();
+  resetInput();
+}
+
+function resetInput() {
+  document.getElementById('stopBtn').classList.remove('active');
+  document.getElementById('sendBtn').style.display = '';
+  document.getElementById('sendBtn').disabled = false;
+  document.getElementById('chatInput').focus();
+}
+
+/* ═══════════════════════════════════════════════
+   MESSAGE HELPERS
+   ═══════════════════════════════════════════════ */
+function addMsg(role, content, isHtml) {
+  const row = document.createElement('div'); row.className = 'nx-msg nx-msg-' + role;
+  const av = document.createElement('div'); av.className = 'nx-msg-av';
+  if (role === 'u') {
+    av.textContent = '{{ user_email[0]|upper }}';
+  } else {
+    av.innerHTML = '<svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>';
+  }
+  const bd = document.createElement('div'); bd.className = 'nx-msg-bd';
+  if (role === 'u') {
+    bd.innerHTML = '<p>' + esc(content) + '</p>';
+  } else if (isHtml && content.startsWith('<')) {
+    bd.innerHTML = content;
+  } else {
+    bd.innerHTML = md(content || '');
+  }
+  row.appendChild(av); row.appendChild(bd); inner.appendChild(row);
+  scr.scrollTop = scr.scrollHeight; return row;
+}
+
+function addThink() {
+  const row = document.createElement('div'); row.className = 'nx-msg nx-msg-b';
+  const av = document.createElement('div'); av.className = 'nx-msg-av';
+  av.innerHTML = '<svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>';
+  const bd = document.createElement('div'); bd.className = 'nx-msg-bd';
+  const think = document.createElement('div'); think.className = 'nx-think';
+  think.innerHTML = '<div class="nx-think-dots"><i></i><i></i><i></i></div><span class="nx-think-label">Thinking</span><span class="nx-think-timer" id="thinkTime">0s</span>';
+  bd.appendChild(think); row.appendChild(av); row.appendChild(bd);
+  inner.appendChild(row); scr.scrollTop = scr.scrollHeight;
+  let sec = 0;
+  thinkTimer = setInterval(() => { sec++; const el = document.getElementById('thinkTime'); if (el) el.textContent = sec + 's'; }, 1000);
+  return row;
+}
+
+/* ═══════════════════════════════════════════════
+   PREVIEW PANEL
+   ═══════════════════════════════════════════════ */
+function openInPreview(url) {
+  const panel = document.getElementById('previewPanel');
+  panel.classList.add('open');
+  document.getElementById('previewFrame').src = url;
+  document.getElementById('previewFrame').style.display = '';
+  document.getElementById('previewCode').style.display = 'none';
+  previewHtml = url;
+  document.querySelectorAll('.nx-preview-tab').forEach(t => t.classList.remove('active'));
+  document.querySelector('.nx-preview-tab').classList.add('active');
+}
+
+function showPreviewTab(tab) {
+  document.querySelectorAll('.nx-preview-tab').forEach(t => t.classList.remove('active'));
+  event.target.classList.add('active');
+  if (tab === 'preview') {
+    document.getElementById('previewFrame').style.display = '';
+    document.getElementById('previewCode').style.display = 'none';
+  } else {
+    document.getElementById('previewFrame').style.display = 'none';
+    const codeEl = document.getElementById('previewCode');
+    codeEl.style.display = 'block';
+    const iframe = document.getElementById('previewFrame');
+    try {
+      codeEl.textContent = iframe.contentDocument.documentElement.outerHTML;
+    } catch (e) {
+      codeEl.textContent = '(Cannot read iframe content — open in new tab to view source)';
+    }
+  }
+}
+
+function openPreviewNewTab() {
+  if (previewHtml) window.open(previewHtml, '_blank');
+}
+
+function downloadPreview() {
+  if (previewHtml) window.location.href = previewHtml.replace('/preview/', '/download/');
+}
+
+function closePreview() {
+  document.getElementById('previewPanel').classList.remove('open');
+}
+
+/* ═══════════════════════════════════════════════
+   UTILITIES
+   ═══════════════════════════════════════════════ */
+function copyCode(btn) {
+  const code = btn.closest('.nx-code-wrap').querySelector('code').textContent;
+  navigator.clipboard.writeText(code).then(() => {
+    btn.textContent = 'Copied!'; btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 2000);
+  });
+}
+
+function exportChat() {
+  const t = hist.map(m => m.role.toUpperCase() + ': ' + m.content).join('\n\n');
+  navigator.clipboard.writeText(t).then(() => {
+    const b = document.querySelector('[title="Export chat"]');
+    if (b) { b.style.color = 'var(--grn)'; setTimeout(() => b.style.color = '', 1500); }
+  });
+}
+
+function esc(s) { const d = document.createElement('div'); d.textContent = s; return d.innerHTML; }
+function md(s) { if (typeof marked !== 'undefined') return marked.parse(s); return '<p>' + esc(s) + '</p>'; }
+
+/* ═══════════════════════════════════════════════
+   FILE UPLOAD
+   ═══════════════════════════════════════════════ */
+async function handleFileSelect(input) {
+  const file = input.files[0];
+  if (!file) return;
+  input.value = '';
+  await uploadFile(file);
+}
+
+async function uploadFile(file) {
+  const name = file.name.toLowerCase();
+  if (!name.endsWith('.csv') && !name.endsWith('.rds')) {
+    alert('Only .csv and .rds files are supported.');
+    return;
+  }
+
+  const form = new FormData();
+  form.append('file', file);
+
+  document.getElementById('fileName').textContent = file.name;
+  document.getElementById('fileMeta').textContent = 'uploading...';
+  document.getElementById('attachedBar').classList.add('show');
+
+  try {
+    const res = await fetch('/api/agent/upload', { method: 'POST', body: form });
+    const data = await res.json();
+    if (!data.success) {
+      document.getElementById('fileMeta').textContent = 'failed';
+      setTimeout(removeFile, 2000);
+      return;
+    }
+    uploadedFileId = data.file_id;
+    uploadedFileName = data.filename;
+    uploadedFileMeta = data.columns.length + ' cols, ' + data.rows.toLocaleString() + ' rows';
+    document.getElementById('fileMeta').textContent = uploadedFileMeta;
+    document.getElementById('sendBtn').disabled = false;
+  } catch (e) {
+    document.getElementById('fileMeta').textContent = 'error';
+    setTimeout(removeFile, 2000);
+  }
+}
+
+function removeFile() {
+  uploadedFileId = null;
+  uploadedFileName = null;
+  uploadedFileMeta = null;
+  document.getElementById('attachedBar').classList.remove('show');
+  const inp = document.getElementById('chatInput');
+  document.getElementById('sendBtn').disabled = !inp.value.trim();
+}
+
+/* Drag and drop */
+let dragCounter = 0;
+document.addEventListener('dragenter', e => {
+  e.preventDefault();
+  dragCounter++;
+  if (dragCounter === 1) document.getElementById('dropzone').classList.add('show');
+});
+document.addEventListener('dragleave', e => {
+  e.preventDefault();
+  dragCounter--;
+  if (dragCounter === 0) document.getElementById('dropzone').classList.remove('show');
+});
+document.addEventListener('dragover', e => e.preventDefault());
+document.addEventListener('drop', e => {
+  e.preventDefault();
+  dragCounter = 0;
+  document.getElementById('dropzone').classList.remove('show');
+  const files = e.dataTransfer.files;
+  if (files.length > 0) uploadFile(files[0]);
+});
+</script>
+</body>
+</html>

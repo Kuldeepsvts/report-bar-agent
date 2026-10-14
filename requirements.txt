@@ -1,0 +1,11 @@
+Flask>=3.0
+langchain-openai>=1.6
+langchain-core>=1.6
+langchain-community>=0.4
+langchain-text-splitters>=1.1
+langgraph>=1.2
+langgraph-checkpoint>=4.2
+langgraph-prebuilt>=1.1
+faiss-cpu>=1.15
+pandas>=2.0
+pyreadr>=0.5
