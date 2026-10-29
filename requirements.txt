@@ -9,3 +9,7 @@ langgraph-prebuilt>=1.1
 faiss-cpu>=1.15
 pandas>=2.0
 pyreadr>=0.5
+boto3>=1.34
+PyYAML>=6.0
+python-dateutil>=2.9
+numpy>=1.26

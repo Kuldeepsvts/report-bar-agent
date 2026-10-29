@@ -8,9 +8,12 @@ LLM_MODEL = "report-agent"
 # EMBEDDING_MODEL = "bia-genai-embedding-gpt-small"
 EMBEDDING_MODEL = "report-agent-embedding"
 
-REPO_URL = "https://github.com/Kuldeepsvts/report.git"
+REPO_URL = "https://github.com/EliLillyCo/report.git" #"https://github.com/Kuldeepsvts/report.git"
+# mmm_report_platform now lives inside REPO_URL's repo as a sibling package
+# (mmm_report_platform/), not a separate repo.
 
 AUTH_USERS = {
     "admin": "admin123",
     "kuldeep": "kuldeep123",
 }
+

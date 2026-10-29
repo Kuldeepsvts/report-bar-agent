@@ -13,6 +13,17 @@
    ═══════════════════════════════════════════════════════════════════ */
 *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
 
+/* ── Universal button feedback ── */
+button { -webkit-tap-highlight-color: transparent; }
+button:focus-visible, .nx-card:focus-visible, input:focus-visible, textarea:focus-visible {
+  outline: 2px solid var(--acc); outline-offset: 2px;
+}
+.nx-ibtn:active, .nx-rbtn:active, .nx-attach:active, .nx-code-copy:active,
+.nx-hist-del:active, .nx-hist-edit:active, .nx-file-rm:active,
+.nx-theme button:active, .nx-msg-edit:active, .nx-preview-maxbtn:active {
+  transform: scale(.92);
+}
+
 /* ── Theme Tokens ── */
 [data-theme="dark"] {
   --bg:        #0a0b10;
@@ -107,7 +118,7 @@ html, body {
   background: linear-gradient(135deg, var(--acc), var(--acc2));
   display: flex; align-items: center; justify-content: center; flex-shrink: 0;
 }
-.nx-logo svg { width: 18px; height: 18px; stroke: #fff; stroke-width: 2; fill: none; }
+.nx-logo svg { width: 20px; height: 20px; fill: #fff; }
 .nx-brand-t {
   font-weight: 800; font-size: .9em; letter-spacing: -.02em;
   background: linear-gradient(135deg, var(--acc), var(--acc2));
@@ -117,12 +128,13 @@ html, body {
 
 .nx-new {
   margin: 0 12px 12px; padding: 10px 14px; border-radius: 10px;
-  border: 1px solid var(--brd2); background: transparent;
-  color: var(--tx2); font-weight: 600; font-size: .78em; cursor: pointer;
+  border: 1px solid var(--brd2); background: var(--glow);
+  color: var(--acc); font-weight: 600; font-size: .78em; cursor: pointer;
   display: flex; align-items: center; gap: 8px; transition: all .15s;
   font-family: inherit; min-width: 236px;
 }
-.nx-new:hover { border-color: var(--acc); color: var(--acc); background: var(--glow); }
+.nx-new:hover { border-color: var(--acc); background: rgba(108,140,255,.14); box-shadow: 0 2px 10px rgba(108,140,255,.12); }
+.nx-new:active { transform: scale(.97); }
 .nx-new svg { width: 14px; height: 14px; stroke: currentColor; stroke-width: 2; fill: none; }
 
 .nx-hist {
@@ -144,14 +156,25 @@ html, body {
 .nx-hist-item:hover { background: var(--glow); color: var(--tx); }
 .nx-hist-item.active { background: var(--glow); color: var(--acc); font-weight: 600; }
 .nx-hist-item span { flex: 1; overflow: hidden; text-overflow: ellipsis; }
-.nx-hist-del {
+.nx-hist-edit, .nx-hist-del {
   display: none; width: 18px; height: 18px; border-radius: 4px; border: none;
   background: transparent; color: var(--tx3); cursor: pointer;
   align-items: center; justify-content: center; flex-shrink: 0;
-  font-size: .7em; padding: 0; transition: all .1s;
+  padding: 0; transition: all .1s;
 }
+.nx-hist-del { font-size: .7em; }
+.nx-hist-edit svg { width: 11px; height: 11px; stroke: currentColor; stroke-width: 2; fill: none; }
+.nx-hist-item:hover .nx-hist-edit,
 .nx-hist-item:hover .nx-hist-del { display: flex; }
+.nx-hist-edit:hover { background: var(--glow); color: var(--acc); }
 .nx-hist-del:hover { background: rgba(248,113,113,.12); color: var(--red); }
+.nx-hist-item.renaming .nx-hist-edit,
+.nx-hist-item.renaming .nx-hist-del { display: none; }
+.nx-hist-rename-input {
+  flex: 1; min-width: 0; background: var(--bg3); border: 1px solid var(--acc);
+  border-radius: 5px; padding: 2px 6px; font-size: 1em; font-family: inherit;
+  color: var(--tx); outline: none;
+}
 .nx-hist-empty { font-size: .75em; color: var(--tx3); padding: 8px 10px; font-style: italic; }
 
 .nx-side-foot {
@@ -184,7 +207,7 @@ html, body {
   display: flex; align-items: center; justify-content: center; transition: all .12s;
   font-family: inherit;
 }
-.nx-ibtn:hover { background: var(--glow); border-color: var(--acc); color: var(--acc); }
+.nx-ibtn:hover { background: var(--glow); border-color: var(--acc); color: var(--acc); box-shadow: 0 2px 8px rgba(108,140,255,.1); }
 .nx-ibtn svg { width: 15px; height: 15px; stroke: currentColor; stroke-width: 1.8; fill: none; }
 .nx-top-title { font-weight: 600; font-size: .82em; color: var(--tx2); }
 
@@ -232,7 +255,7 @@ html, body {
   display: flex; align-items: center; justify-content: center;
   box-shadow: 0 8px 32px rgba(108, 140, 255, .2);
 }
-.nx-w-icon svg { width: 28px; height: 28px; stroke: #fff; stroke-width: 1.5; fill: none; }
+.nx-w-icon svg { width: 30px; height: 30px; fill: #fff; }
 .nx-welcome h1 {
   font-size: 1.6em; font-weight: 800; letter-spacing: -.03em; margin-bottom: 8px;
   background: linear-gradient(135deg, var(--acc), var(--acc2));
@@ -244,6 +267,11 @@ html, body {
 .nx-grid {
   display: grid; grid-template-columns: repeat(3, 1fr);
   gap: 10px; max-width: 620px; margin: 0 auto;
+}
+.nx-welcome-section-lbl {
+  font-size: .62em; font-weight: 700; color: var(--tx3);
+  text-transform: uppercase; letter-spacing: .1em;
+  max-width: 620px; margin: 28px auto 10px; text-align: left;
 }
 .nx-card {
   padding: 14px; border-radius: 12px; border: 1px solid var(--brd);
@@ -272,14 +300,42 @@ html, body {
   background: linear-gradient(135deg, var(--acc), var(--acc2)); color: #fff;
   box-shadow: 0 2px 10px rgba(108,140,255,.2);
 }
-.nx-msg-b .nx-msg-av svg { width: 14px; height: 14px; stroke: #fff; stroke-width: 2; fill: none; }
+.nx-msg-b .nx-msg-av svg { width: 15px; height: 15px; fill: #fff; }
 
 .nx-msg-bd { flex: 1; min-width: 0; }
+.nx-msg-u { position: relative; }
 .nx-msg-u .nx-msg-bd {
   background: var(--msg-user); border: 1px solid var(--msg-user-brd);
   border-radius: 16px 16px 16px 4px; padding: 12px 16px;
-  font-size: .86em; line-height: 1.65;
+  font-size: .86em; line-height: 1.65; position: relative;
 }
+.nx-msg-edit {
+  position: absolute; top: -8px; right: -8px; width: 24px; height: 24px;
+  border-radius: 50%; border: 1px solid var(--brd2); background: var(--sur);
+  color: var(--tx3); cursor: pointer; display: flex; align-items: center;
+  justify-content: center; opacity: 0; transition: all .15s; padding: 0;
+}
+.nx-msg-u:hover .nx-msg-edit { opacity: 1; }
+.nx-msg-edit:hover { border-color: var(--acc); color: var(--acc); background: var(--glow); }
+.nx-msg-edit svg { width: 12px; height: 12px; stroke: currentColor; stroke-width: 2; fill: none; }
+
+.nx-msg-edit-box textarea {
+  width: 100%; background: var(--bg3); border: 1.5px solid var(--acc);
+  border-radius: 10px; padding: 10px 12px; color: var(--tx); font-family: inherit;
+  font-size: 1em; line-height: 1.5; resize: none; outline: none; min-height: 48px;
+}
+.nx-msg-edit-actions { display: flex; gap: 6px; margin-top: 8px; justify-content: flex-end; }
+.nx-msg-edit-actions button {
+  padding: 6px 14px; border-radius: 8px; font-size: .78em; font-weight: 600;
+  cursor: pointer; font-family: inherit; transition: all .12s; border: 1px solid var(--brd2);
+  background: var(--sur); color: var(--tx);
+}
+.nx-msg-edit-actions button:hover { border-color: var(--acc); color: var(--acc); }
+.nx-msg-edit-actions button.pri {
+  background: linear-gradient(135deg, var(--acc), var(--acc2)); color: #fff; border: none;
+}
+.nx-msg-edit-actions button.pri:hover { opacity: .9; color: #fff; }
+
 .nx-msg-b .nx-msg-bd { font-size: .86em; line-height: 1.7; }
 .nx-msg-b .nx-msg-bd p { margin: 6px 0; }
 .nx-msg-b .nx-msg-bd ul, .nx-msg-b .nx-msg-bd ol { padding-left: 22px; margin: 8px 0; }
@@ -440,12 +496,26 @@ html, body {
 /* ════════════════════════════════════════
    PREVIEW PANEL (right side)
    ════════════════════════════════════════ */
+.nx-body { position: relative; }
 .nx-preview {
   width: 0; border-left: 1px solid var(--brd); background: var(--bg2);
   display: flex; flex-direction: column; overflow: hidden;
-  transition: width .3s ease;
+  transition: width .3s ease; position: relative; flex-shrink: 0;
+  --preview-w: 460px;
 }
-.nx-preview.open { width: 460px; }
+.nx-preview.open { width: var(--preview-w); }
+.nx-preview.resizing { transition: none; }
+.nx-preview.maximized {
+  position: absolute; inset: 0; width: 100% !important; z-index: 50;
+  transition: none; border-left: none;
+}
+
+.nx-preview-resize {
+  position: absolute; left: -4px; top: 0; bottom: 0; width: 8px;
+  cursor: col-resize; z-index: 5; background: transparent;
+}
+.nx-preview-resize:hover, .nx-preview.resizing .nx-preview-resize { background: rgba(108,140,255,.2); }
+.nx-preview.maximized .nx-preview-resize { display: none; }
 
 .nx-preview-top {
   height: 48px; display: flex; align-items: center; justify-content: space-between;
@@ -566,9 +636,8 @@ html, body {
 .nx-dropzone-inner p { color: var(--tx3); font-size: .82em; }
 
 /* ── Responsive ── */
-@media (max-width: 1100px) { .nx-preview.open { width: 380px; } }
 @media (max-width: 900px) {
-  .nx-preview.open { width: 100%; position: fixed; inset: 0; z-index: 200; }
+  .nx-preview.open { width: 100% !important; position: fixed; inset: 0; z-index: 200; }
   .nx-grid { grid-template-columns: 1fr 1fr; }
 }
 @media (max-width: 768px) {
@@ -580,13 +649,22 @@ html, body {
 </style>
 </head>
 <body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <symbol id="nxGlyph" viewBox="0 0 24 24">
+      <rect x="3" y="13" width="8" height="8" rx="2.5"/>
+      <rect x="9" y="7" width="7" height="7" rx="2.2" opacity=".88"/>
+      <rect x="14" y="3" width="6" height="6" rx="1.8" opacity=".75"/>
+    </symbol>
+  </defs>
+</svg>
 <div class="nx">
 
   <!-- ═══ SIDEBAR ═══ -->
   <aside class="nx-side" id="sidebar">
     <div class="nx-side-hdr">
       <div class="nx-logo">
-        <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+        <svg viewBox="0 0 24 24"><use href="#nxGlyph"/></svg>
       </div>
       <div>
         <div class="nx-brand-t">Nexus Agent</div>
@@ -640,10 +718,11 @@ html, body {
           <div class="nx-chat-inner" id="chatInner">
             <div class="nx-welcome" id="welcome">
               <div class="nx-w-icon">
-                <svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>
+                <svg viewBox="0 0 24 24"><use href="#nxGlyph"/></svg>
               </div>
               <h1>MMM Report Agent</h1>
-              <p>I maintain the <strong>mmm_report</strong> package — generate reports, edit code, create new report types, and push to git.</p>
+              <p>I maintain two packages: <strong>mmm_report</strong> (demo reports) and <strong>mmm_report_platform</strong> (real MMM brand reports) — generate reports, edit code, create new sections, and push to git for either.</p>
+              <div class="nx-welcome-section-lbl">mmm_report — demo package</div>
               <div class="nx-grid">
                 <button class="nx-card" onclick="send('Generate an executive report')">
                   <div class="nx-card-icon">📊</div>
@@ -674,6 +753,39 @@ html, body {
                   <div class="nx-card-icon">🔀</div>
                   <div class="nx-card-t">Git Status</div>
                   <div class="nx-card-d">Branch, changes, recent commits</div>
+                </button>
+              </div>
+              <div class="nx-welcome-section-lbl">mmm_report_platform — real MMM brand reports</div>
+              <div class="nx-grid">
+                <button class="nx-card" onclick="send('Generate the Zepbound report with mock data')">
+                  <div class="nx-card-icon">💊</div>
+                  <div class="nx-card-t">Zepbound Report</div>
+                  <div class="nx-card-d">Mock data, dark theme</div>
+                </button>
+                <button class="nx-card" onclick="send('Generate the Mounjaro report in light theme with mock data')">
+                  <div class="nx-card-icon">🌤️</div>
+                  <div class="nx-card-t">Mounjaro (Light Theme)</div>
+                  <div class="nx-card-d">Mock data, light theme</div>
+                </button>
+                <button class="nx-card" onclick="send('List the available brands in mmm_report_platform')">
+                  <div class="nx-card-icon">🏷️</div>
+                  <div class="nx-card-t">Available Brands</div>
+                  <div class="nx-card-d">Mounjaro, Zepbound, Taltz, Ebglyss</div>
+                </button>
+                <button class="nx-card" onclick="send('Generate the Taltz report with real S3 data')">
+                  <div class="nx-card-icon">☁️</div>
+                  <div class="nx-card-t">Real S3 Data</div>
+                  <div class="nx-card-d">Live model data (needs AWS creds)</div>
+                </button>
+                <button class="nx-card" onclick="send('Show me the mmm_report_platform sections structure')">
+                  <div class="nx-card-icon">🧩</div>
+                  <div class="nx-card-t">Platform Structure</div>
+                  <div class="nx-card-d">Sections, config, data pipeline</div>
+                </button>
+                <button class="nx-card" onclick="send('How do I add a new report section to mmm_report_platform?')">
+                  <div class="nx-card-icon">➕</div>
+                  <div class="nx-card-t">Add a New Section</div>
+                  <div class="nx-card-d">Walk me through the steps</div>
                 </button>
               </div>
             </div>
@@ -712,6 +824,7 @@ html, body {
 
       <!-- Preview panel -->
       <div class="nx-preview" id="previewPanel">
+        <div class="nx-preview-resize" id="previewResize"></div>
         <div class="nx-preview-top">
           <div class="nx-preview-tabs">
             <button class="nx-preview-tab active" onclick="showPreviewTab('preview')">Preview</button>
@@ -723,6 +836,9 @@ html, body {
             </button>
             <button class="nx-ibtn" onclick="downloadPreview()" title="Download HTML">
               <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            </button>
+            <button class="nx-ibtn nx-preview-maxbtn" id="previewMaxBtn" onclick="toggleMaximizePreview()" title="Maximize">
+              <svg viewBox="0 0 24 24"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
             </button>
             <button class="nx-ibtn" onclick="closePreview()" title="Close panel">
               <svg viewBox="0 0 24 24"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
@@ -792,9 +908,9 @@ function initSession() {
     const conv = conversations[sessionId];
     hist.push(...conv.messages);
     const w = document.getElementById('welcome'); if (w) w.remove();
-    conv.messages.forEach(m => {
+    conv.messages.forEach((m, i) => {
       if (m.role === 'user') {
-        addMsg('u', m.content, false);
+        addMsg('u', m.content, false, i);
       } else {
         addMsg('b', m.content, true);
         if (m.reports && m.reports.length > 0) {
@@ -831,12 +947,17 @@ function saveSession() {
     conversations[sessionId] = {
       id: sessionId,
       title: hist.length > 0 ? hist[0].content.slice(0, 50) : 'New chat',
+      titleIsCustom: false,
       created: Date.now(),
       messages: [],
     };
   }
-  conversations[sessionId].messages = hist.slice();
-  conversations[sessionId].updated = Date.now();
+  const conv = conversations[sessionId];
+  if (!conv.titleIsCustom && hist.length > 0) {
+    conv.title = hist[0].content.slice(0, 50);
+  }
+  conv.messages = hist.slice();
+  conv.updated = Date.now();
   localStorage.setItem('nx-conversations', JSON.stringify(conversations));
   renderSidebar();
 }
@@ -855,15 +976,47 @@ function renderSidebar() {
     const label = document.createElement('span');
     label.textContent = c.title || 'New chat';
     label.onclick = () => switchSession(c.id);
+    const edit = document.createElement('button');
+    edit.className = 'nx-hist-edit';
+    edit.innerHTML = '<svg viewBox="0 0 24 24"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></svg>';
+    edit.title = 'Rename';
+    edit.onclick = (e) => { e.stopPropagation(); startRenameChat(c.id, el, label); };
     const del = document.createElement('button');
     del.className = 'nx-hist-del';
     del.innerHTML = '&times;';
     del.title = 'Delete';
     del.onclick = (e) => { e.stopPropagation(); deleteChat(c.id); };
     el.appendChild(label);
+    el.appendChild(edit);
     el.appendChild(del);
     list.appendChild(el);
   });
+}
+
+function startRenameChat(id, itemEl, labelEl) {
+  const conv = conversations[id];
+  if (!conv) return;
+  itemEl.classList.add('renaming');
+  const input = document.createElement('input');
+  input.className = 'nx-hist-rename-input';
+  input.value = conv.title || 'New chat';
+  labelEl.replaceWith(input);
+  input.focus(); input.select();
+
+  const commit = () => {
+    const val = input.value.trim();
+    if (val) { conv.title = val; conv.titleIsCustom = true; }
+    localStorage.setItem('nx-conversations', JSON.stringify(conversations));
+    renderSidebar();
+  };
+  const cancel = () => renderSidebar();
+
+  input.onkeydown = (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); commit(); }
+    else if (e.key === 'Escape') { e.preventDefault(); cancel(); }
+  };
+  input.onblur = commit;
+  input.onclick = (e) => e.stopPropagation();
 }
 
 function deleteChat(id) {
@@ -922,8 +1075,9 @@ function send(text) {
   inp.value = ''; inp.style.height = 'auto';
   document.getElementById('sendBtn').disabled = true;
   const w = document.getElementById('welcome'); if (w) w.remove();
-  addMsg('u', msg);
+  const idx = hist.length;
   hist.push({ role: 'user', content: msg });
+  addMsg('u', msg, false, idx);
   saveSession();
   const thEl = addThink();
   doStream(msg, thEl);
@@ -944,7 +1098,7 @@ async function doStream(msg, thEl) {
       thEl.remove(); clearInterval(thinkTimer);
       botRow = document.createElement('div'); botRow.className = 'nx-msg nx-msg-b';
       const av = document.createElement('div'); av.className = 'nx-msg-av';
-      av.innerHTML = '<svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>';
+      av.innerHTML = '<svg viewBox="0 0 24 24"><use href="#nxGlyph"/></svg>';
       botBd = document.createElement('div'); botBd.className = 'nx-msg-bd';
       botRow.appendChild(av); botRow.appendChild(botBd);
       inner.appendChild(botRow);
@@ -1133,13 +1287,13 @@ function resetInput() {
 /* ═══════════════════════════════════════════════
    MESSAGE HELPERS
    ═══════════════════════════════════════════════ */
-function addMsg(role, content, isHtml) {
+function addMsg(role, content, isHtml, histIndex) {
   const row = document.createElement('div'); row.className = 'nx-msg nx-msg-' + role;
   const av = document.createElement('div'); av.className = 'nx-msg-av';
   if (role === 'u') {
     av.textContent = '{{ user_email[0]|upper }}';
   } else {
-    av.innerHTML = '<svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>';
+    av.innerHTML = '<svg viewBox="0 0 24 24"><use href="#nxGlyph"/></svg>';
   }
   const bd = document.createElement('div'); bd.className = 'nx-msg-bd';
   if (role === 'u') {
@@ -1149,14 +1303,68 @@ function addMsg(role, content, isHtml) {
   } else {
     bd.innerHTML = md(content || '');
   }
-  row.appendChild(av); row.appendChild(bd); inner.appendChild(row);
+  row.appendChild(av); row.appendChild(bd);
+  if (role === 'u') {
+    const idx = histIndex !== undefined ? histIndex : hist.length - 1;
+    const editBtn = document.createElement('button');
+    editBtn.className = 'nx-msg-edit';
+    editBtn.title = 'Edit message';
+    editBtn.innerHTML = '<svg viewBox="0 0 24 24"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5z"/></svg>';
+    editBtn.onclick = () => startEditMessage(row, idx);
+    row.appendChild(editBtn);
+  }
+  inner.appendChild(row);
   scr.scrollTop = scr.scrollHeight; return row;
+}
+
+function startEditMessage(row, idx) {
+  const bd = row.querySelector('.nx-msg-bd');
+  const original = hist[idx] ? hist[idx].content : '';
+  bd.innerHTML = '';
+  const box = document.createElement('div'); box.className = 'nx-msg-edit-box';
+  const ta = document.createElement('textarea');
+  ta.value = original;
+  box.appendChild(ta);
+  const actions = document.createElement('div'); actions.className = 'nx-msg-edit-actions';
+  const cancelBtn = document.createElement('button');
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.onclick = () => cancelEditMessage(row, original);
+  const saveBtn = document.createElement('button');
+  saveBtn.className = 'pri'; saveBtn.textContent = 'Save & Submit';
+  saveBtn.onclick = () => saveEditedMessage(row, idx, ta.value.trim());
+  actions.appendChild(cancelBtn); actions.appendChild(saveBtn);
+  box.appendChild(actions);
+  bd.appendChild(box);
+  ta.focus(); ta.select();
+  autoGrow(ta);
+  ta.oninput = () => autoGrow(ta);
+  ta.onkeydown = (e) => {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); saveEditedMessage(row, idx, ta.value.trim()); }
+    else if (e.key === 'Escape') { e.preventDefault(); cancelEditMessage(row, original); }
+  };
+}
+
+function cancelEditMessage(row, original) {
+  const bd = row.querySelector('.nx-msg-bd');
+  bd.innerHTML = '<p>' + esc(original) + '</p>';
+}
+
+function saveEditedMessage(row, idx, newText) {
+  if (!newText) return;
+  let el = row;
+  while (el) { const next = el.nextElementSibling; el.remove(); el = next; }
+  hist.length = idx;
+  hist.push({ role: 'user', content: newText });
+  saveSession();
+  addMsg('u', newText, false, idx);
+  const thEl = addThink();
+  doStream(newText, thEl);
 }
 
 function addThink() {
   const row = document.createElement('div'); row.className = 'nx-msg nx-msg-b';
   const av = document.createElement('div'); av.className = 'nx-msg-av';
-  av.innerHTML = '<svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>';
+  av.innerHTML = '<svg viewBox="0 0 24 24"><use href="#nxGlyph"/></svg>';
   const bd = document.createElement('div'); bd.className = 'nx-msg-bd';
   const think = document.createElement('div'); think.className = 'nx-think';
   think.innerHTML = '<div class="nx-think-dots"><i></i><i></i><i></i></div><span class="nx-think-label">Thinking</span><span class="nx-think-timer" id="thinkTime">0s</span>';
@@ -1172,6 +1380,8 @@ function addThink() {
    ═══════════════════════════════════════════════ */
 function openInPreview(url) {
   const panel = document.getElementById('previewPanel');
+  const savedWidth = localStorage.getItem('nx-preview-width');
+  if (savedWidth) panel.style.setProperty('--preview-w', savedWidth + 'px');
   panel.classList.add('open');
   document.getElementById('previewFrame').src = url;
   document.getElementById('previewFrame').style.display = '';
@@ -1209,8 +1419,58 @@ function downloadPreview() {
 }
 
 function closePreview() {
-  document.getElementById('previewPanel').classList.remove('open');
+  const panel = document.getElementById('previewPanel');
+  panel.classList.remove('open');
+  panel.classList.remove('maximized');
+  setMaximizeIcon(false);
 }
+
+function toggleMaximizePreview() {
+  const panel = document.getElementById('previewPanel');
+  const willMaximize = !panel.classList.contains('maximized');
+  panel.classList.toggle('maximized', willMaximize);
+  setMaximizeIcon(willMaximize);
+}
+
+function setMaximizeIcon(isMax) {
+  const btn = document.getElementById('previewMaxBtn');
+  btn.title = isMax ? 'Restore' : 'Maximize';
+  btn.querySelector('svg').innerHTML = isMax
+    ? '<path d="M9 3v4a1 1 0 0 1-1 1H4m16 0h-4a1 1 0 0 1-1-1V3m0 18v-4a1 1 0 0 1 1-1h4M4 15h4a1 1 0 0 1 1 1v4"/>'
+    : '<path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>';
+}
+
+(function initPreviewResize() {
+  const panel = document.getElementById('previewPanel');
+  const handle = document.getElementById('previewResize');
+  const MIN_W = 320;
+  let startX = 0, startW = 0, dragging = false;
+
+  handle.addEventListener('mousedown', (e) => {
+    if (panel.classList.contains('maximized')) return;
+    dragging = true;
+    startX = e.clientX;
+    startW = panel.getBoundingClientRect().width;
+    panel.classList.add('resizing');
+    document.body.style.userSelect = 'none';
+    e.preventDefault();
+  });
+  window.addEventListener('mousemove', (e) => {
+    if (!dragging) return;
+    const maxW = document.querySelector('.nx-body').getBoundingClientRect().width * 0.9;
+    let w = startW - (e.clientX - startX);
+    w = Math.max(MIN_W, Math.min(w, maxW));
+    panel.style.setProperty('--preview-w', w + 'px');
+  });
+  window.addEventListener('mouseup', () => {
+    if (!dragging) return;
+    dragging = false;
+    panel.classList.remove('resizing');
+    document.body.style.userSelect = '';
+    const w = panel.getBoundingClientRect().width;
+    localStorage.setItem('nx-preview-width', Math.round(w));
+  });
+})();
 
 /* ═══════════════════════════════════════════════
    UTILITIES
