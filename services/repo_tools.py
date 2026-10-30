@@ -1,19 +1,26 @@
 """repo_tools.py — File-system and git tools for managed external repos."""
 
+import os
 import re
 import subprocess
 import sys
 from pathlib import Path
 from typing import Any
 
+import config
+
 APP_ROOT = Path(__file__).resolve().parent.parent
 
 REPOS = {
     "report": {
-        "url": "https://github.com/Kuldeepsvts/report.git",
+        "url": config.REPO_URL,
         "dir": APP_ROOT / "external_repos" / "report",
     },
 }
+
+# Paths the agent's commits may stage. Anything else untracked (scratch scripts,
+# generated HTML, local configs) is reported back instead of silently committed.
+COMMIT_PATHS = ["mmm_report_platform", "README.md", "pyproject.toml", "tests"]
 
 # Backward-compatible module-level aliases for the default repo.
 EXTERNAL_REPO_URL = REPOS["report"]["url"]
@@ -64,6 +71,7 @@ def execute_tool(tool_name: str, args: dict[str, Any]) -> dict[str, Any]:
         "repo_list_files": _repo_list_files,
         "repo_read_file": _repo_read_file,
         "repo_write_file": _repo_write_file,
+        "repo_edit_file": _repo_edit_file,
         "repo_search_code": _repo_search_code,
         "repo_branch": _repo_branch,
         "repo_checkout": _repo_checkout,
@@ -151,9 +159,12 @@ def _repo_read_file(args):
     _ensure_cloned(repo)
     path = _safe_path(args["path"], repo=repo)
     if not path.exists(): return f"File not found: {args['path']}"
-    content = path.read_text(encoding="utf-8", errors="replace")
-    numbered = [f"{i+1:4d} | {line}" for i, line in enumerate(content.splitlines())]
-    return "\n".join(numbered)
+    lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    start = max(int(args.get("start_line") or 1), 1)
+    end = int(args.get("end_line") or 0) or len(lines)
+    numbered = [f"{i:4d} | {lines[i-1]}" for i in range(start, min(end, len(lines)) + 1)]
+    header = f"({len(lines)} lines total, showing {start}-{min(end, len(lines))})\n" if (start > 1 or end < len(lines)) else ""
+    return header + "\n".join(numbered)
 
 
 def _repo_write_file(args):
@@ -163,6 +174,26 @@ def _repo_write_file(args):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(args["content"], encoding="utf-8")
     return f"Wrote {args['content'].count(chr(10))+1} lines to {args['path']}"
+
+
+def _repo_edit_file(args):
+    repo = args.get("repo", "report")
+    _ensure_cloned(repo)
+    path = _safe_path(args["path"], repo=repo)
+    if not path.exists():
+        raise FileNotFoundError(f"File not found: {args['path']}")
+    old, new = args["old_text"], args["new_text"]
+    content = path.read_text(encoding="utf-8")
+    count = content.count(old)
+    if count == 0:
+        raise ValueError(
+            f"old_text not found in {args['path']}. Re-read the file (read_file) and copy the exact "
+            f"text, including indentation — do not include the line-number prefix."
+        )
+    if count > 1:
+        raise ValueError(f"old_text matches {count} places in {args['path']}; include more surrounding lines so it is unique.")
+    path.write_text(content.replace(old, new, 1), encoding="utf-8")
+    return f"Edited {args['path']}: replaced {old.count(chr(10))+1} line(s) with {new.count(chr(10))+1} line(s)"
 
 
 def _repo_search_code(args):
@@ -199,8 +230,17 @@ def _repo_checkout(args):
 def _repo_commit(args):
     repo = args.get("repo", "report")
     _ensure_cloned(repo)
-    _run_git("add", "-A", repo=repo)
-    return _run_git("commit", "-m", args.get("message", "Update via agent"), repo=repo)
+    repo_dir = _repo_dir(repo)
+    _run_git("add", "-u", repo=repo)
+    existing = [p for p in COMMIT_PATHS if (repo_dir / p).exists()]
+    if existing:
+        _run_git("add", "--", *existing, repo=repo)
+    out = _run_git("commit", "-m", args.get("message", "Update via agent"), repo=repo)
+    left = _run_git("status", "--porcelain", repo=repo)
+    if left and left != "(no output)":
+        out += ("\n\nNOT committed (outside mmm_report_platform/, README.md, pyproject.toml, tests/):\n"
+                f"{left}\nIf any of these belong in the PR, tell the user; otherwise leave them.")
+    return out
 
 
 def _repo_push(args):
@@ -236,19 +276,37 @@ def _repo_run_script(args):
     safe = _safe_path(args.get("script", ""), repo=repo)
     if not safe.exists(): raise FileNotFoundError(f"Not found: {args['script']}")
     extra_args = args.get("args", [])
-    timeout = args.get("timeout", 30)
+    timeout = min(int(args.get("timeout") or 60), 300)
     r = subprocess.run(
         [sys.executable, str(safe), *extra_args],
         cwd=str(repo_dir), capture_output=True, text=True, timeout=timeout,
+        env={**os.environ, "PYTHONPATH": str(repo_dir)},
     )
-    return f"{'OK' if r.returncode==0 else f'FAILED({r.returncode})'}\n{r.stdout[:2000]}\n{r.stderr[:500]}".strip()
+    return _format_run(r)
 
 
 def _repo_run_python(args):
     repo = args.get("repo", "report")
     _ensure_cloned(repo)
     repo_dir = _repo_dir(repo)
-    r = subprocess.run([sys.executable, "-c", args.get("code", "")], cwd=str(repo_dir),
-        capture_output=True, text=True, timeout=30,
-        env={**__import__("os").environ, "PYTHONPATH": str(repo_dir)})
-    return f"{'OK' if r.returncode==0 else f'FAILED({r.returncode})'}\n{r.stdout[:2000]}\n{r.stderr[:500]}".strip()
+    timeout = min(int(args.get("timeout") or 60), 300)
+    try:
+        r = subprocess.run([sys.executable, "-c", args.get("code", "")], cwd=str(repo_dir),
+            capture_output=True, text=True, timeout=timeout,
+            env={**os.environ, "PYTHONPATH": str(repo_dir)})
+    except subprocess.TimeoutExpired:
+        raise RuntimeError(f"Timed out after {timeout}s. For real-S3 report builds use generate_report(mode='real'), which runs in the background.")
+    return _format_run(r)
+
+
+def _clip(text: str, limit: int, keep_tail: bool = False) -> str:
+    if len(text) <= limit:
+        return text
+    if keep_tail:
+        return f"...[{len(text) - limit} chars cut]...\n" + text[-limit:]
+    return text[:limit] + f"\n...[{len(text) - limit} chars cut]"
+
+
+def _format_run(r: subprocess.CompletedProcess) -> str:
+    status = "OK" if r.returncode == 0 else f"FAILED({r.returncode})"
+    return f"{status}\n{_clip(r.stdout, 6000)}\n{_clip(r.stderr, 4000, keep_tail=True)}".strip()

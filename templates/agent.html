@@ -268,6 +268,10 @@ html, body {
   display: grid; grid-template-columns: repeat(3, 1fr);
   gap: 10px; max-width: 620px; margin: 0 auto;
 }
+.nx-grid-2 { grid-template-columns: repeat(2, 1fr); }
+.nx-grid-2 .nx-card { padding: 16px; }
+.nx-grid-2 .nx-card-t { font-size: .84em; }
+.nx-grid-2 .nx-card-d { font-size: .7em; }
 .nx-welcome-section-lbl {
   font-size: .62em; font-weight: 700; color: var(--tx3);
   text-transform: uppercase; letter-spacing: .1em;
@@ -455,6 +459,28 @@ html, body {
   background: linear-gradient(135deg, var(--grn), #059669); color: #fff; border: none;
 }
 .nx-rbtn.pri:hover { opacity: .9; box-shadow: 0 4px 16px rgba(52,211,153,.25); }
+
+/* ── Background job card ── */
+.nx-job {
+  margin: 12px 0; padding: 14px 18px; border-radius: 12px;
+  border: 1px solid rgba(108, 140, 255, .25); background: var(--glow);
+  display: flex; align-items: center; gap: 14px;
+}
+.nx-job-spin {
+  width: 18px; height: 18px; border-radius: 50%; flex-shrink: 0;
+  border: 2px solid var(--brd2); border-top-color: var(--acc);
+  animation: nxSpin .9s linear infinite;
+}
+@keyframes nxSpin { to { transform: rotate(360deg); } }
+.nx-job-info { flex: 1; min-width: 0; }
+.nx-job-info strong { font-size: .86em; color: var(--tx); }
+.nx-job-meta { font-size: .72em; color: var(--tx3); margin-top: 2px; }
+.nx-job.failed { border-color: rgba(248, 113, 113, .35); background: rgba(248, 113, 113, .05); }
+.nx-job.failed .nx-job-spin { display: none; }
+.nx-job-err {
+  font-size: .72em; color: var(--tx2); margin-top: 6px; white-space: pre-wrap;
+  max-height: 160px; overflow: auto; font-family: ui-monospace, monospace;
+}
 
 /* ── Sources ── */
 .nx-sources { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 10px; }
@@ -721,71 +747,46 @@ html, body {
                 <svg viewBox="0 0 24 24"><use href="#nxGlyph"/></svg>
               </div>
               <h1>MMM Report Agent</h1>
-              <p>I maintain two packages: <strong>mmm_report</strong> (demo reports) and <strong>mmm_report_platform</strong> (real MMM brand reports) — generate reports, edit code, create new sections, and push to git for either.</p>
-              <div class="nx-welcome-section-lbl">mmm_report — demo package</div>
-              <div class="nx-grid">
-                <button class="nx-card" onclick="send('Generate an executive report')">
+              <p>I work on the <strong>mmm_report_platform</strong> repo. I can fix and edit reports, add new report types, and build reports from your own config. I preview every change before opening a PR.</p>
+              <div class="nx-welcome-section-lbl">What I can do</div>
+              <div class="nx-grid nx-grid-2">
+                <button class="nx-card" onclick="prefill('Fix this in the DTC impact model report: ')">
+                  <div class="nx-card-icon">🛠️</div>
+                  <div class="nx-card-t">Fix &amp; edit reports</div>
+                  <div class="nx-card-d">Describe a bug or change. I reproduce it, fix it, show you the preview, then open a PR.</div>
+                </button>
+                <button class="nx-card" onclick="prefill('Onboard a new report type called ')">
+                  <div class="nx-card-icon">➕</div>
+                  <div class="nx-card-t">Onboard a new report</div>
+                  <div class="nx-card-d">Give instructions, or attach starter code (.py) or a sample report (.html/.qmd). I add it to the package.</div>
+                </button>
+                <button class="nx-card" onclick="attachThen('Build a report from this config with real data')">
                   <div class="nx-card-icon">📊</div>
-                  <div class="nx-card-t">Executive Report</div>
-                  <div class="nx-card-d">KPIs, revenue by region, summary</div>
+                  <div class="nx-card-t">Build from your config</div>
+                  <div class="nx-card-d">Attach or paste a YAML config. Mock data takes seconds; real S3 data runs in the background.</div>
                 </button>
-                <button class="nx-card" onclick="send('Generate a sales report')">
-                  <div class="nx-card-icon">💰</div>
-                  <div class="nx-card-t">Sales Report</div>
-                  <div class="nx-card-d">Regions, countries, product revenue</div>
-                </button>
-                <button class="nx-card" onclick="send('Generate a channel report')">
-                  <div class="nx-card-icon">📡</div>
-                  <div class="nx-card-t">Channel Report</div>
-                  <div class="nx-card-d">Marketing spend, ROI analysis</div>
-                </button>
-                <button class="nx-card" onclick="send('List all available report types')">
-                  <div class="nx-card-icon">📋</div>
-                  <div class="nx-card-t">All Report Types</div>
-                  <div class="nx-card-d">See the full catalog</div>
-                </button>
-                <button class="nx-card" onclick="send('Show me the package structure')">
-                  <div class="nx-card-icon">📁</div>
-                  <div class="nx-card-t">Package Structure</div>
-                  <div class="nx-card-d">List all files in the repo</div>
-                </button>
-                <button class="nx-card" onclick="send('Show git status')">
-                  <div class="nx-card-icon">🔀</div>
-                  <div class="nx-card-t">Git Status</div>
-                  <div class="nx-card-d">Branch, changes, recent commits</div>
+                <button class="nx-card" onclick="send('How is the DTC impact model report put together? Walk me through the sections, data loading and config fields.')">
+                  <div class="nx-card-icon">🔎</div>
+                  <div class="nx-card-t">Explore the code</div>
+                  <div class="nx-card-d">Ask how any section, chart, data loader or config field works.</div>
                 </button>
               </div>
-              <div class="nx-welcome-section-lbl">mmm_report_platform — real MMM brand reports</div>
+              <div class="nx-welcome-section-lbl">Quick start</div>
               <div class="nx-grid">
-                <button class="nx-card" onclick="send('Generate the Zepbound report with mock data')">
+                <button class="nx-card" onclick="send('List all available report types')">
+                  <div class="nx-card-icon">📋</div>
+                  <div class="nx-card-t">Report types</div>
+                  <div class="nx-card-d">Everything I can build</div>
+                </button>
+                <button class="nx-card" onclick="send('Show me the available DTC and HCP impact model configs')">
+                  <div class="nx-card-icon">🗂️</div>
+                  <div class="nx-card-t">Available configs</div>
+                  <div class="nx-card-d">Bundled + ones you uploaded</div>
+                </button>
+                <button class="nx-card" onclick="send('Generate the Mounjaro DTC impact model report with mock data')">
                   <div class="nx-card-icon">💊</div>
-                  <div class="nx-card-t">Zepbound Report</div>
-                  <div class="nx-card-d">Mock data, dark theme</div>
-                </button>
-                <button class="nx-card" onclick="send('Generate the Mounjaro report in light theme with mock data')">
-                  <div class="nx-card-icon">🌤️</div>
-                  <div class="nx-card-t">Mounjaro (Light Theme)</div>
-                  <div class="nx-card-d">Mock data, light theme</div>
-                </button>
-                <button class="nx-card" onclick="send('List the available brands in mmm_report_platform')">
-                  <div class="nx-card-icon">🏷️</div>
-                  <div class="nx-card-t">Available Brands</div>
-                  <div class="nx-card-d">Mounjaro, Zepbound, Taltz, Ebglyss</div>
-                </button>
-                <button class="nx-card" onclick="send('Generate the Taltz report with real S3 data')">
-                  <div class="nx-card-icon">☁️</div>
-                  <div class="nx-card-t">Real S3 Data</div>
-                  <div class="nx-card-d">Live model data (needs AWS creds)</div>
-                </button>
-                <button class="nx-card" onclick="send('Show me the mmm_report_platform sections structure')">
-                  <div class="nx-card-icon">🧩</div>
-                  <div class="nx-card-t">Platform Structure</div>
-                  <div class="nx-card-d">Sections, config, data pipeline</div>
-                </button>
-                <button class="nx-card" onclick="send('How do I add a new report section to mmm_report_platform?')">
-                  <div class="nx-card-icon">➕</div>
-                  <div class="nx-card-t">Add a New Section</div>
-                  <div class="nx-card-d">Walk me through the steps</div>
+                  <div class="nx-card-t">Try a sample</div>
+                  <div class="nx-card-d">Mounjaro DTC, mock data</div>
                 </button>
               </div>
             </div>
@@ -803,11 +804,11 @@ html, body {
               </div>
             </div>
             <div class="nx-inp-box">
-              <button class="nx-attach" onclick="document.getElementById('fileInput').click()" title="Upload CSV or RDS">
+              <button class="nx-attach" onclick="document.getElementById('fileInput').click()" title="Attach a config (.yaml), data (.csv/.rds), starter code (.py) or sample report (.html/.qmd)">
                 <svg viewBox="0 0 24 24"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"/></svg>
               </button>
-              <input type="file" id="fileInput" accept=".csv,.rds" style="display:none" onchange="handleFileSelect(this)">
-              <textarea id="chatInput" placeholder="Generate a report, edit code, or ask anything..." rows="1"
+              <input type="file" id="fileInput" accept=".csv,.rds,.yaml,.yml,.py,.html,.htm,.qmd,.md,.txt,.json" style="display:none" onchange="handleFileSelect(this)">
+              <textarea id="chatInput" placeholder="Fix a report, onboard a new one, or build from your config..." rows="1"
                         onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();send()}"
                         oninput="autoGrow(this);document.getElementById('sendBtn').disabled=!this.value.trim()&amp;&amp;!uploadedFileId"></textarea>
               <button class="nx-stop" id="stopBtn" onclick="stopStream()" title="Stop generating">
@@ -817,7 +818,7 @@ html, body {
                 <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
               </button>
             </div>
-            <div class="nx-inp-hint">Enter to send · Shift+Enter for new line · Attach .csv or .rds files · 16 tools</div>
+            <div class="nx-inp-hint">Enter to send · Shift+Enter for new line · Attach a config (.yaml), data (.csv/.rds), starter code (.py) or sample report (.html/.qmd)</div>
           </div>
         </div>
       </div>
@@ -913,25 +914,10 @@ function initSession() {
         addMsg('u', m.content, false, i);
       } else {
         addMsg('b', m.content, true);
-        if (m.reports && m.reports.length > 0) {
-          const lastRow = inner.querySelector('.nx-msg:last-child .nx-msg-bd');
-          if (lastRow) {
-            m.reports.forEach(r => {
-              const rpt = document.createElement('div'); rpt.className = 'nx-report';
-              const typeName = r.report_type.charAt(0).toUpperCase() + r.report_type.slice(1);
-              rpt.innerHTML =
-                '<div class="nx-report-info">' +
-                  '<strong>' + esc(typeName) + ' Report</strong>' +
-                  '<div class="nx-report-meta">' + (r.size_bytes || 0).toLocaleString() + ' bytes</div>' +
-                '</div>' +
-                '<div class="nx-report-btns">' +
-                  '<button class="nx-rbtn" onclick="openInPreview(\'' + r.preview_url + '\')">Preview</button>' +
-                  '<button class="nx-rbtn" onclick="window.open(\'' + r.preview_url + '\',\'_blank\')">New Tab</button>' +
-                  '<button class="nx-rbtn pri" onclick="window.location.href=\'' + r.download_url + '\'">Download</button>' +
-                '</div>';
-              lastRow.appendChild(rpt);
-            });
-          }
+        const lastRow = inner.querySelector('.nx-msg:last-child .nx-msg-bd');
+        if (lastRow) {
+          (m.reports || []).forEach(r => lastRow.appendChild(reportCard(r)));
+          (m.jobs || []).forEach(j => lastRow.appendChild(jobCard(j, i)));
         }
       }
     });
@@ -1060,6 +1046,19 @@ initSession();
 
 function autoGrow(el) { el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, 150) + 'px'; }
 
+function prefill(text) {
+  const inp = document.getElementById('chatInput');
+  inp.value = text; inp.focus();
+  inp.setSelectionRange(text.length, text.length);
+  autoGrow(inp);
+  document.getElementById('sendBtn').disabled = false;
+}
+
+function attachThen(text) {
+  prefill(text);
+  document.getElementById('fileInput').click();
+}
+
 function send(text) {
   const inp = document.getElementById('chatInput');
   let msg = text || inp.value.trim();
@@ -1088,7 +1087,7 @@ function send(text) {
    ═══════════════════════════════════════════════ */
 async function doStream(msg, thEl) {
   let botRow = null, botBd = null, textSpan = null, rawText = '', fullRaw = '';
-  let reportEvents = [];
+  let reportEvents = [], jobEvents = [];
   abortCtrl = new AbortController();
   document.getElementById('stopBtn').classList.add('active');
   document.getElementById('sendBtn').style.display = 'none';
@@ -1229,22 +1228,19 @@ async function doStream(msg, thEl) {
 
         else if (evt.type === 'report') {
           ensureBotRow(); finalizeText();
-          reportEvents.push({ report_type: evt.report_type, size_bytes: evt.size_bytes, preview_url: evt.preview_url, download_url: evt.download_url });
-          const rpt = document.createElement('div'); rpt.className = 'nx-report';
-          const typeName = evt.report_type.charAt(0).toUpperCase() + evt.report_type.slice(1);
-          rpt.innerHTML =
-            '<div class="nx-report-info">' +
-              '<strong>' + esc(typeName) + ' Report</strong>' +
-              '<div class="nx-report-meta">' + evt.size_bytes.toLocaleString() + ' bytes</div>' +
-            '</div>' +
-            '<div class="nx-report-btns">' +
-              '<button class="nx-rbtn" onclick="openInPreview(\'' + evt.preview_url + '\')">Preview</button>' +
-              '<button class="nx-rbtn" onclick="window.open(\'' + evt.preview_url + '\',\'_blank\')">New Tab</button>' +
-              '<button class="nx-rbtn pri" onclick="window.location.href=\'' + evt.download_url + '\'">Download</button>' +
-            '</div>';
-          botBd.appendChild(rpt);
+          const r = { report_type: evt.report_type, size_bytes: evt.size_bytes, preview_url: evt.preview_url, download_url: evt.download_url };
+          reportEvents.push(r);
+          botBd.appendChild(reportCard(r));
           scr.scrollTop = scr.scrollHeight;
           openInPreview(evt.preview_url);
+        }
+
+        else if (evt.type === 'job') {
+          ensureBotRow(); finalizeText();
+          const j = { job_id: evt.job_id, label: evt.label, report_type: evt.report_type };
+          jobEvents.push(j);
+          botBd.appendChild(jobCard(j, hist.length, true));
+          scr.scrollTop = scr.scrollHeight;
         }
 
         else if (evt.type === 'done') {
@@ -1257,6 +1253,7 @@ async function doStream(msg, thEl) {
     finalizeText();
     const entry = { role: 'assistant', content: fullRaw };
     if (reportEvents.length > 0) entry.reports = reportEvents;
+    if (jobEvents.length > 0) entry.jobs = jobEvents;
     hist.push(entry);
     saveSession();
     if (botBd) botBd.querySelectorAll('.nx-code-wrap code').forEach(el => {
@@ -1391,6 +1388,82 @@ function openInPreview(url) {
   document.querySelector('.nx-preview-tab').classList.add('active');
 }
 
+function prettyType(t) {
+  return (t || 'report').split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+}
+
+function reportCard(r) {
+  const rpt = document.createElement('div'); rpt.className = 'nx-report';
+  const meta = (r.size_bytes || 0).toLocaleString() + ' bytes' + (r.elapsed_s ? ' · built in ' + fmtDur(r.elapsed_s) : '');
+  rpt.innerHTML =
+    '<div class="nx-report-info">' +
+      '<strong>' + esc(prettyType(r.report_type)) + ' Report</strong>' +
+      '<div class="nx-report-meta">' + esc(r.label ? r.label + ' · ' : '') + meta + '</div>' +
+    '</div>' +
+    '<div class="nx-report-btns">' +
+      '<button class="nx-rbtn" data-act="preview">Preview</button>' +
+      '<button class="nx-rbtn" data-act="tab">New Tab</button>' +
+      '<button class="nx-rbtn pri" data-act="dl">Download</button>' +
+    '</div>';
+  rpt.querySelector('[data-act=preview]').onclick = () => openInPreview(r.preview_url);
+  rpt.querySelector('[data-act=tab]').onclick = () => window.open(r.preview_url, '_blank');
+  rpt.querySelector('[data-act=dl]').onclick = () => { window.location.href = r.download_url; };
+  return rpt;
+}
+
+function fmtDur(s) {
+  s = Math.round(s);
+  return s < 60 ? s + 's' : Math.floor(s / 60) + 'm ' + String(s % 60).padStart(2, '0') + 's';
+}
+
+/* Background (real-data) build: poll until done, then swap in a normal report card.
+   histIdx = index of the assistant message in hist that owns this job (for persistence). */
+function jobCard(j, histIdx, autoOpen) {
+  const card = document.createElement('div'); card.className = 'nx-job';
+  card.innerHTML =
+    '<div class="nx-job-spin"></div>' +
+    '<div class="nx-job-info">' +
+      '<strong>Building ' + esc(prettyType(j.report_type)) + ' report…</strong>' +
+      '<div class="nx-job-meta">' + esc(j.label || '') + ' · <span class="nx-job-t">starting</span></div>' +
+    '</div>';
+  const tEl = card.querySelector('.nx-job-t');
+  const settle = (patch) => {
+    const m = hist[histIdx];
+    if (m && m.jobs) {
+      m.jobs = m.jobs.filter(x => x.job_id !== j.job_id);
+      if (patch.report) (m.reports = m.reports || []).push(patch.report);
+      if (patch.failed) m.jobs.push({ ...j, failed: patch.failed });
+      saveSession();
+    }
+  };
+  const fail = (msg) => {
+    card.classList.add('failed');
+    card.querySelector('strong').textContent = prettyType(j.report_type) + ' report failed';
+    tEl.textContent = 'stopped';
+    const e = document.createElement('div'); e.className = 'nx-job-err'; e.textContent = msg;
+    card.querySelector('.nx-job-info').appendChild(e);
+  };
+  if (j.failed) { fail(j.failed); return card; }
+  const poll = async () => {
+    let d;
+    try { d = await (await fetch('/api/agent/jobs/' + encodeURIComponent(j.job_id))).json(); }
+    catch { setTimeout(poll, 5000); return; }
+    if (!d.success) { fail(d.error || 'Job not found'); settle({ failed: d.error || 'Job not found' }); return; }
+    if (d.status === 'running') {
+      tEl.textContent = fmtDur(d.elapsed_s) + ' elapsed — you can keep chatting';
+      setTimeout(poll, 3000); return;
+    }
+    if (d.status === 'failed') { fail(d.error); settle({ failed: d.error }); return; }
+    const r = { report_type: j.report_type, label: j.label, size_bytes: d.size_bytes, elapsed_s: d.elapsed_s,
+                preview_url: d.preview_url, download_url: d.download_url };
+    card.replaceWith(reportCard(r));
+    settle({ report: r });
+    if (autoOpen) openInPreview(r.preview_url);
+  };
+  poll();
+  return card;
+}
+
 function showPreviewTab(tab) {
   document.querySelectorAll('.nx-preview-tab').forEach(t => t.classList.remove('active'));
   event.target.classList.add('active');
@@ -1504,10 +1577,12 @@ async function handleFileSelect(input) {
   await uploadFile(file);
 }
 
+const UPLOAD_EXTS = ['.csv', '.rds', '.yaml', '.yml', '.py', '.html', '.htm', '.qmd', '.md', '.txt', '.json'];
+
 async function uploadFile(file) {
   const name = file.name.toLowerCase();
-  if (!name.endsWith('.csv') && !name.endsWith('.rds')) {
-    alert('Only .csv and .rds files are supported.');
+  if (!UPLOAD_EXTS.some(ext => name.endsWith(ext))) {
+    alert('Supported files: ' + UPLOAD_EXTS.join(', '));
     return;
   }
 
@@ -1522,13 +1597,15 @@ async function uploadFile(file) {
     const res = await fetch('/api/agent/upload', { method: 'POST', body: form });
     const data = await res.json();
     if (!data.success) {
-      document.getElementById('fileMeta').textContent = 'failed';
-      setTimeout(removeFile, 2000);
+      document.getElementById('fileMeta').textContent = data.error ? 'failed: ' + data.error.slice(0, 80) : 'failed';
+      setTimeout(removeFile, 4000);
       return;
     }
     uploadedFileId = data.file_id;
     uploadedFileName = data.filename;
-    uploadedFileMeta = data.columns.length + ' cols, ' + data.rows.toLocaleString() + ' rows';
+    if (data.kind === 'config') uploadedFileMeta = 'YAML config, ' + data.lines + ' lines';
+    else if (data.kind === 'text') uploadedFileMeta = data.lines.toLocaleString() + ' lines';
+    else uploadedFileMeta = data.columns.length + ' cols, ' + data.rows.toLocaleString() + ' rows';
     document.getElementById('fileMeta').textContent = uploadedFileMeta;
     document.getElementById('sendBtn').disabled = false;
   } catch (e) {

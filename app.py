@@ -18,6 +18,8 @@ from flask import (
     Flask, Blueprint, Response, jsonify, render_template, request,
     make_response, stream_with_context, session, redirect, url_for,
 )
+from werkzeug.utils import secure_filename
+import yaml
 
 import config
 
@@ -133,6 +135,8 @@ def agent_stream():
         for block in result.get("blocks", []):
             if block["type"] == "report":
                 yield f"data: {json.dumps({'type': 'report', 'report_id': block['report_id'], 'report_type': block['report_type'], 'size_bytes': block['size_bytes'], 'preview_url': block['preview_url'], 'download_url': block['download_url']})}\n\n"
+            elif block["type"] == "job":
+                yield f"data: {json.dumps({'type': 'job', 'job_id': block['job_id'], 'label': block['label'], 'report_type': block['report_type']})}\n\n"
             elif block["type"] == "code":
                 yield f"data: {json.dumps({'type': 'code', 'content': block['content'], 'language': block.get('language', 'text')})}\n\n"
             elif block["type"] == "error":
@@ -165,18 +169,25 @@ def agent_stream():
 # File upload
 # ═══════════════════════════════════════════════════════════════════
 
+TABULAR_EXTS = (".csv", ".rds")
+TEXT_EXTS = (".yaml", ".yml", ".py", ".html", ".htm", ".qmd", ".md", ".txt", ".json")
+MAX_TEXT_UPLOAD_BYTES = 5 * 1024 * 1024
+
+
 @app.route("/api/agent/upload", methods=["POST"])
 @auth_required
 def agent_upload():
-    from services.agent_service import _UPLOADED_FILES
+    from services.agent_service import _UPLOADED_FILES, UPLOADS_DIR
     if "file" not in request.files:
         return jsonify({"success": False, "error": "No file uploaded"}), 400
     f = request.files["file"]
     if not f.filename:
         return jsonify({"success": False, "error": "Empty filename"}), 400
     name = f.filename.lower()
-    if not (name.endswith(".csv") or name.endswith(".rds")):
-        return jsonify({"success": False, "error": "Only .csv and .rds files supported"}), 400
+    if name.endswith(TEXT_EXTS):
+        return _save_text_upload(f, _UPLOADED_FILES, UPLOADS_DIR)
+    if not name.endswith(TABULAR_EXTS):
+        return jsonify({"success": False, "error": "Supported: " + ", ".join(TABULAR_EXTS + TEXT_EXTS)}), 400
     try:
         import pandas as pd
         if name.endswith(".csv"):
@@ -203,6 +214,33 @@ def agent_upload():
         return jsonify({"success": False, "error": f"Failed to parse: {e}"}), 500
 
 
+def _save_text_upload(f, registry: dict, uploads_dir):
+    raw = f.read(MAX_TEXT_UPLOAD_BYTES + 1)
+    if len(raw) > MAX_TEXT_UPLOAD_BYTES:
+        return jsonify({"success": False, "error": "File too large (max 5 MB)"}), 400
+    try:
+        text = raw.decode("utf-8")
+    except UnicodeDecodeError:
+        return jsonify({"success": False, "error": "File is not UTF-8 text"}), 400
+    safe_name = secure_filename(f.filename) or "upload.txt"
+    is_yaml = safe_name.lower().endswith((".yaml", ".yml"))
+    if is_yaml:
+        try:
+            parsed = yaml.safe_load(text)
+        except yaml.YAMLError as e:
+            return jsonify({"success": False, "error": f"Invalid YAML: {e}"}), 400
+        if not isinstance(parsed, dict):
+            return jsonify({"success": False, "error": "YAML must be a mapping at the top level"}), 400
+    file_id = hashlib.sha256(raw + safe_name.encode()).hexdigest()[:10]
+    uploads_dir.mkdir(parents=True, exist_ok=True)
+    path = uploads_dir / f"{file_id}_{safe_name}"
+    path.write_bytes(raw)
+    registry[file_id] = {"kind": "text", "filename": f.filename, "path": str(path)}
+    lines = text.count("\n") + 1
+    return jsonify({"success": True, "file_id": file_id, "filename": f.filename,
+                    "kind": "config" if is_yaml else "text", "lines": lines})
+
+
 @app.route("/api/agent/upload/<file_id>")
 @auth_required
 def agent_get_upload(file_id):
@@ -217,14 +255,14 @@ def agent_get_upload(file_id):
 # Report preview / download
 # ═══════════════════════════════════════════════════════════════════
 
-@app.route("/api/agent/reports")
+@app.route("/api/agent/jobs/<job_id>")
 @auth_required
-def agent_list_reports():
-    try:
-        from mmm_report import list_reports
-        return jsonify({"success": True, "reports": list_reports()})
-    except Exception as e:
-        return jsonify({"success": False, "error": str(e)}), 500
+def agent_job_status(job_id):
+    from services.report_jobs import get_job
+    job = get_job(job_id)
+    if not job:
+        return jsonify({"success": False, "error": "Job not found (the server may have restarted)"}), 404
+    return jsonify({"success": True, **job})
 
 
 @app.route("/api/agent/preview/<report_id>")

@@ -1,7 +1,7 @@
 """mmm_agent_service.py — Code-maintenance agent for the unified mmm_report_platform package.
 
 Uses LangChain + LangGraph with Cortex (OpenAI-compatible gateway):
-  - LangGraph tool-calling agent with file/git tools for Kuldeepsvts/report.git,
+  - LangGraph tool-calling agent with file/git tools for EliLillyCo/report.git,
     which contains the mmm_report_platform package (demo reports + DTC/HCP
     impact model reports, each report type in its own reports/<type>/ folder)
   - FAISS RAG over the mmm_report_platform source code for context
@@ -10,15 +10,13 @@ Uses LangChain + LangGraph with Cortex (OpenAI-compatible gateway):
   - Automatic retry on transient LLM failures
 """
 
-import hashlib
 import json as _json
-import subprocess
-import sys
 import time
 import uuid
 from pathlib import Path
 from typing import Any, Annotated, Literal, Optional
 
+import yaml
 from langchain_openai import ChatOpenAI, AzureOpenAIEmbeddings
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage, BaseMessage
 from langchain_core.documents import Document
@@ -33,12 +31,13 @@ from langgraph.prebuilt import ToolNode
 from typing_extensions import TypedDict
 
 import config
+from services import report_jobs
 from services.repo_tools import (
     execute_tool as _exec_repo_tool,
     EXTERNAL_REPO_DIR,
 )
 
-_PREVIEW_CACHE: dict[str, str] = {}
+_PREVIEW_CACHE = report_jobs.PREVIEW_CACHE
 _UPLOADED_FILES: dict[str, dict] = {}
 
 
@@ -89,7 +88,7 @@ def _get_embeddings() -> AzureOpenAIEmbeddings:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-# 2. LangChain Tools — all scoped to github.com/Kuldeepsvts/report.git
+# 2. LangChain Tools — all scoped to github.com/EliLillyCo/report.git
 # ═══════════════════════════════════════════════════════════════════════════════
 
 _LAST_GENERATED_REPORTS: list[dict] = []
@@ -109,16 +108,30 @@ def list_files(pattern: str = "") -> str:
 
 
 @tool
-def read_file(path: str) -> str:
-    """Read a file from the mmm_report_platform repo. Returns content with line numbers."""
-    r = _exec_repo_tool("repo_read_file", {"path": path})
+def read_file(path: str, start_line: int = 0, end_line: int = 0) -> str:
+    """Read a file from the mmm_report_platform repo. Returns content with line numbers.
+    For large files, pass start_line/end_line (1-based, inclusive) to read just a range."""
+    r = _exec_repo_tool("repo_read_file", {"path": path, "start_line": start_line, "end_line": end_line})
     return r.get("data", r.get("error", "unknown error"))
 
 
 @tool
 def write_file(path: str, content: str) -> str:
-    """Write or overwrite a file in the mmm_report_platform repo. Creates parent dirs if needed."""
+    """Create a NEW file (or fully rewrite a small one) in the repo. Creates parent dirs.
+    For changing part of an existing file, use edit_file instead — it is safer and cheaper."""
     r = _exec_repo_tool("repo_write_file", {"path": path, "content": content})
+    return r.get("data", r.get("error", "unknown error"))
+
+
+@tool
+def edit_file(path: str, old_text: str, new_text: str) -> str:
+    """Replace one exact block of text in an existing repo file.
+
+    old_text must match the file EXACTLY once (copy it from read_file output WITHOUT the
+    'NNNN | ' line-number prefix, keeping indentation). Include 2-3 surrounding lines if the
+    snippet alone is not unique. Prefer this over write_file for every edit to existing code.
+    """
+    r = _exec_repo_tool("repo_edit_file", {"path": path, "old_text": old_text, "new_text": new_text})
     return r.get("data", r.get("error", "unknown error"))
 
 
@@ -159,7 +172,8 @@ def git_checkout(name: str) -> str:
 
 @tool
 def git_commit(message: str) -> str:
-    """Stage all changes and commit with the given message."""
+    """Commit changes under mmm_report_platform/, README.md, pyproject.toml and tests/.
+    Other untracked files are NOT committed; they are listed in the result."""
     r = _exec_repo_tool("repo_commit", {"message": message})
     return r.get("data", r.get("error", "unknown error"))
 
@@ -171,40 +185,57 @@ def git_push() -> str:
     return r.get("data", r.get("error", "unknown error"))
 
 
-def _run_report_subprocess(code: str, timeout: int = 30) -> tuple[str, str]:
-    """Run code in a subprocess against the local repo. Returns (html, error).
-    Auto-clones the repo if it doesn't exist yet."""
+WORKSPACE_DIR = Path(__file__).resolve().parent.parent / ".workspace"
+CONFIGS_DIR = WORKSPACE_DIR / "configs"
+UPLOADS_DIR = WORKSPACE_DIR / "uploads"
+IMPACT_MODEL_TYPES = ("dtc_impact_model", "hcp_impact_model")
+
+_LAST_STARTED_JOBS: list[dict] = []
+
+
+def _ensure_repo() -> str:
     if not (EXTERNAL_REPO_DIR / ".git").exists():
-        clone_result = _exec_repo_tool("repo_clone_or_update", {})
-        if not clone_result.get("success"):
-            return "", f"Failed to clone repo: {clone_result.get('error')}"
-    try:
-        result = subprocess.run(
-            [sys.executable, "-c", code],
-            cwd=str(EXTERNAL_REPO_DIR),
-            capture_output=True, text=True, timeout=timeout,
-        )
-    except subprocess.TimeoutExpired:
-        return "", f"Timed out after {timeout}s"
-    if result.returncode != 0:
-        return "", result.stderr.strip()
-    html = result.stdout
-    if not html.strip():
-        return "", f"Empty output. stderr: {result.stderr.strip()}"
-    return html, ""
+        r = _exec_repo_tool("repo_clone_or_update", {})
+        if not r.get("success"):
+            return f"Failed to clone repo: {r.get('error')}"
+    return ""
+
+
+def _run_report_subprocess(code: str, timeout: int = 30) -> tuple[str, str]:
+    """Run code in a subprocess at the repo root. Returns (stdout, error)."""
+    err = _ensure_repo()
+    if err:
+        return "", err
+    return report_jobs.run_build(code, timeout)
 
 
 def _cache_report(html: str, report_type: str) -> str:
-    """Cache generated HTML and return the report_id."""
-    report_id = hashlib.sha256((html + str(time.time())).encode()).hexdigest()[:12]
-    _PREVIEW_CACHE[report_id] = html
+    report_id = report_jobs.cache_report(html)
     _LAST_GENERATED_REPORTS.append({
         "report_id": report_id,
         "report_type": report_type,
         "size_bytes": len(html),
-        "html": html,
     })
     return report_id
+
+
+def _resolve_config_path(config_path: str) -> tuple[str, str]:
+    """Return (path_for_subprocess, error). Accepts repo-relative paths or files in .workspace/."""
+    p = Path(config_path).expanduser()
+    if p.is_absolute():
+        resolved = p.resolve()
+        if not str(resolved).startswith(str(WORKSPACE_DIR.resolve())):
+            return "", (f"config_path {config_path!r} is outside the repo and the agent workspace. "
+                        f"Ask the user to upload the file (paperclip) or paste it so you can save_config() it.")
+        if not resolved.exists():
+            return "", f"Config not found: {config_path}"
+        return str(resolved), ""
+    rel = config_path.lstrip("/")
+    for candidate in (rel, f"mmm_report_platform/{rel}", f"mmm_report_platform/config/{rel}"):
+        if (EXTERNAL_REPO_DIR / candidate).is_file():
+            return candidate, ""
+    return "", (f"Config not found: {config_path!r}. Use list_report_configs() for bundled configs, or the "
+                f"path returned by save_config()/get_uploaded_file() for user-provided ones.")
 
 
 @tool
@@ -230,25 +261,66 @@ def list_report_types() -> str:
 
 @tool
 def list_report_configs(report_type: Literal["dtc_impact_model", "hcp_impact_model"]) -> str:
-    """List available YAML config files for an impact-model report type.
+    """List YAML configs available for an impact-model report type: the ones bundled in the
+    repo (mmm_report_platform/config/) AND any the user provided (.workspace/configs/ and uploads).
 
-    Use this BEFORE generate_report() for dtc_impact_model/hcp_impact_model —
-    these report types require a config_path, and this tells you which brand
-    configs actually exist (e.g. config/DTC_Impact_Model_Zepbound.yaml) instead
-    of guessing a brand name. There is no fixed brand list — any YAML dropped
-    into mmm_report_platform/config/ following the existing schema works.
+    Use this BEFORE generate_report() for dtc_impact_model/hcp_impact_model if you don't
+    already have a config_path. There is no fixed brand list.
     """
     code = (
         "import sys; sys.path.insert(0, '.'); "
         f"from mmm_report_platform.reports.{report_type}.build import list_configs; "
         "r = list_configs(); "
-        "[print(f'  {n:45s} — {d}') for n, d in r.items()]; "
-        "print(f'{len(r)} config(s) available')"
+        "[print(f'  mmm_report_platform/config/{n:40s} — {d}') for n, d in r.items()]; "
+        "print(f'{len(r)} bundled config(s)')"
     )
     out, err = _run_report_subprocess(code)
     if err:
         return f"Error: {err}"
+    user_cfgs = [p for d in (CONFIGS_DIR, UPLOADS_DIR) if d.exists() for p in sorted(d.glob("*.y*ml"))]
+    if user_cfgs:
+        out += "\nUser-provided configs (pass the full path as config_path):\n"
+        out += "\n".join(f"  {p}" for p in user_cfgs)
     return out
+
+
+def _check_config_schema(path: str) -> str:
+    code = (
+        "import sys, yaml; sys.path.insert(0, '.'); "
+        "from mmm_report_platform.reports.dtc_impact_model.load_data import _validate_config_schema; "
+        f"p = {path!r}; _validate_config_schema(yaml.safe_load(open(p)), p); print('OK')"
+    )
+    _, err = _run_report_subprocess(code)
+    if not err:
+        return ""
+    lines = [l for l in err.strip().splitlines() if l.strip()]
+    msg = next((l for l in lines if "missing required field" in l), lines[-1] if lines else err)
+    return msg.split("ValueError: ", 1)[-1]
+
+
+@tool
+def save_config(filename: str, yaml_text: str) -> str:
+    """Save a YAML config the user pasted in chat to the agent workspace (NOT the repo) and
+    return its path for generate_report(config_path=...).
+
+    Validates YAML syntax and the required impact-model fields. Only if the user asks to add
+    it to the repo permanently: write_file it under mmm_report_platform/config/ on a branch + PR.
+    """
+    try:
+        parsed = yaml.safe_load(yaml_text)
+    except yaml.YAMLError as e:
+        return f"Error: not valid YAML — {e}"
+    if not isinstance(parsed, dict):
+        return "Error: YAML must be a mapping at the top level (brand:, quarter:, base_dir:, ...)."
+    name = Path(filename).name
+    if not name.lower().endswith((".yaml", ".yml")):
+        name += ".yaml"
+    CONFIGS_DIR.mkdir(parents=True, exist_ok=True)
+    dest = CONFIGS_DIR / name
+    dest.write_text(yaml_text, encoding="utf-8")
+    problems = _check_config_schema(str(dest))
+    note = f"\nSchema problem (a real-data build will fail until fixed): {problems}" if problems else "\nSchema check: OK"
+    return f"Saved to {dest}{note}"
 
 
 @tool
@@ -256,52 +328,41 @@ def generate_report(
     report_type: str = "executive",
     title: str = "",
     config_path: str = "",
-    theme: Literal["dark", "light"] = "dark",
+    theme: Literal["dark", "light", "slate", "studio"] = "dark",
     mode: Literal["mock", "real"] = "mock",
 ) -> str:
-    """Generate an HTML report from the LOCAL repo code and return a preview.
+    """Generate an HTML report from the LOCAL repo code and show it in the UI preview.
 
-    This runs the report from the locally edited code in
-    external_repos/report/mmm_report_platform/, NOT from any pip-installed
-    version — so if you just edited a report module, calling this shows the
-    updated version immediately.
+    Runs the locally edited code in external_repos/report/mmm_report_platform/ (not a
+    pip-installed version), so edits show up immediately.
 
-    Use list_report_types() first to see all options.
+    Demo types (executive, sales, product, demographic, channel):
+        generate_report("executive"); generate_report("sales", title="Q3 Sales")
 
-    For demo report types (executive, sales, product, demographic, channel):
-        generate_report("executive")
-        generate_report("sales", title="Q3 Sales")
-
-    For impact-model report types (dtc_impact_model, hcp_impact_model):
-        config_path is REQUIRED — brand, colors, quarters, and stream are all
-        read from that YAML file, not passed as separate arguments. Use
-        list_report_configs(report_type) first to find available config
-        files; there is no fixed brand list to guess from.
-            generate_report("dtc_impact_model", config_path="mmm_report_platform/config/DTC_Impact_Model_Zepbound.yaml")
-            generate_report("dtc_impact_model", config_path="...", theme="light", mode="real")
-
-    Args:
-        report_type: One of list_report_types()'s keys.
-        title: Demo reports only — overrides the default title.
-        config_path: Impact-model reports only — REQUIRED. Path to a brand
-            YAML config, relative to the repo root (e.g.
-            "mmm_report_platform/config/DTC_Impact_Model_Zepbound.yaml").
-        theme: Impact-model reports only — "dark" or "light" (visual only).
-        mode: Impact-model reports only — "mock" (fast, synthetic, default)
-            or "real" (fetches live S3 data, needs AWS credentials, ~30-60s).
-    The UI will automatically show preview and download buttons.
+    Impact-model types (dtc_impact_model, hcp_impact_model) — config_path REQUIRED. Brand,
+    colors, quarters, stream all come from that YAML. Accepts a repo path
+    ("mmm_report_platform/config/DTC_Impact_Model_Zepbound.yaml") or a user-provided config
+    path returned by save_config()/get_uploaded_file().
+        mode="mock" — synthetic data, ~5-10s, preview appears right away.
+        mode="real" — live S3 data. Takes several minutes, so it runs as a BACKGROUND JOB:
+                      this returns immediately with a job_id and the user sees a live
+                      progress card that turns into the preview when done. Do not wait or
+                      poll in a loop — just tell the user it's building.
+    theme: "dark", "light", "slate" (calm mid-tone) or "studio" (slate colours + distinctive borderless folder-style boxes) — visual only. title: demo reports only.
     """
-    is_impact_model = report_type in ("dtc_impact_model", "hcp_impact_model")
+    is_impact_model = report_type in IMPACT_MODEL_TYPES
 
-    if is_impact_model and not config_path:
-        return (
-            f"Error: {report_type} requires config_path. "
-            f"Call list_report_configs('{report_type}') to see available configs."
-        )
+    if is_impact_model:
+        if not config_path:
+            return (f"Error: {report_type} requires config_path. Call list_report_configs('{report_type}'), "
+                    f"or ask the user to upload/paste their config.")
+        config_path, err = _resolve_config_path(config_path)
+        if err:
+            return f"Error: {err}"
 
     code = (
-        f"import sys; sys.path.insert(0, '.'); "
-        f"from mmm_report_platform import build_report; "
+        "import sys; sys.path.insert(0, '.'); "
+        "from mmm_report_platform import build_report; "
         f"html = build_report({report_type!r}"
     )
     if is_impact_model:
@@ -311,15 +372,97 @@ def generate_report(
         code += f", title={title!r}"
     code += "); sys.stdout.write(html)"
 
-    html, err = _run_report_subprocess(code, timeout=90 if is_impact_model else 30)
+    if is_impact_model and mode == "real":
+        err = _ensure_repo()
+        if err:
+            return f"Error: {err}"
+        label = f"{Path(config_path).stem} · real S3 data"
+        job_id = report_jobs.start_job(code, report_type, label)
+        _LAST_STARTED_JOBS.append({"job_id": job_id, "label": label, "report_type": report_type})
+        return (f"Started background build job {job_id} ({label}). The user now sees a live progress "
+                f"card that turns into the preview when finished (usually a few minutes). Tell them that "
+                f"and that they can keep chatting; use check_report_job('{job_id}') only if asked later.")
+
+    html, err = _run_report_subprocess(code, timeout=120 if is_impact_model else 30)
     if err:
         return f"Error generating report: {err}"
 
-    report_id = _cache_report(html, report_type)
+    _cache_report(html, report_type)
     return (
         f"Successfully generated {report_type} report ({len(html):,} bytes) from local code. "
         f"The preview and download buttons are now visible to the user."
     )
+
+
+@tool
+def check_report_job(job_id: str) -> str:
+    """Check the status of a background real-data report build started by generate_report."""
+    job = report_jobs.get_job(job_id)
+    if not job:
+        return f"Unknown job_id {job_id!r} (jobs are lost if the server restarts)."
+    if job["status"] == "running":
+        return f"Job {job_id} still running ({job['elapsed_s']:.0f}s so far)."
+    if job["status"] == "failed":
+        return f"Job {job_id} FAILED after {job['elapsed_s']:.0f}s:\n{job['error'][-3000:]}"
+    return (f"Job {job_id} done in {job['elapsed_s']:.0f}s ({job['size_bytes']:,} bytes). "
+            f"The user's progress card already turned into Preview/Download.")
+
+
+@tool
+def probe_s3_paths(config_path: str) -> str:
+    """Check which S3 folders/files a config points at actually exist (model config YAMLs,
+    reporting/model_output/input_data folders for current and previous quarter).
+
+    Use when a real-data build fails with a missing-file error, or before the first real build
+    of a new config. Takes seconds — does not build the report.
+    """
+    resolved, err = _resolve_config_path(config_path)
+    if err:
+        return f"Error: {err}"
+    code = (
+        "import sys; sys.path.insert(0, '.'); "
+        "from mmm_report_platform._cli import _run_probe; "
+        f"_run_probe({resolved!r})"
+    )
+    out, err = _run_report_subprocess(code, timeout=180)
+    return out if not err else f"Probe failed: {err}"
+
+
+@tool
+def validate_report_type(report_type: str, config_path: str = "") -> str:
+    """Smoke-test a report type end-to-end — REQUIRED before committing a new or changed report.
+
+    Checks it is registered in REPORT_REGISTRY, build() runs (with config_path + mode="mock"
+    for config-driven types; defaults otherwise), and the output is a complete HTML document.
+    Reports size and build time. On FAIL, fix the code from the traceback and re-run.
+    """
+    call_args = ""
+    if config_path:
+        config_path, err = _resolve_config_path(config_path)
+        if err:
+            return f"Error: {err}"
+        call_args = f"config_path={config_path!r}, mode='mock'"
+    code = "\n".join([
+        "import sys, time; sys.path.insert(0, '.')",
+        "from mmm_report_platform.reports import REPORT_REGISTRY",
+        f"name = {report_type!r}",
+        "if name not in REPORT_REGISTRY:",
+        "    sys.exit(f'NOT REGISTERED — add it to REPORT_REGISTRY in mmm_report_platform/reports/__init__.py. Registered: {list(REPORT_REGISTRY)}')",
+        "fn, desc = REPORT_REGISTRY[name]",
+        "t = time.time()",
+        f"html = fn({call_args})",
+        "dt = time.time() - t",
+        "if not isinstance(html, str) or len(html) < 500:",
+        "    sys.exit(f'build() returned {type(html).__name__} ({len(html) if isinstance(html, str) else \"?\"} chars) — expected a full HTML string')",
+        "low = html.lower()",
+        "if not low.lstrip().startswith(('<!doctype', '<html')):",
+        "    sys.exit('output does not start with <!DOCTYPE html> or <html>')",
+        "if '</html>' not in low[-1000:]:",
+        "    sys.exit('output is missing a closing </html>')",
+        "print(f'PASS {name}: {len(html):,} bytes in {dt:.1f}s — {desc}')",
+    ])
+    out, err = _run_report_subprocess(code, timeout=120)
+    return out.strip() if not err else f"FAIL {report_type}:\n{err}"
 
 
 @tool
@@ -328,7 +471,7 @@ def create_pr(title: str, body: str = "") -> str:
 
     IMPORTANT: You must be on a feature branch (not main). The workflow is:
     1. git_branch("my-feature")
-    2. write_file / edit code
+    2. edit_file / write_file
     3. git_commit("description of changes")
     4. create_pr("PR title", "Description of what changed and why")
 
@@ -340,25 +483,21 @@ def create_pr(title: str, body: str = "") -> str:
 
 @tool
 def run_script(script: str) -> str:
-    """Run a Python script file inside the mmm_report_platform repo.
-
-    Use this to verify changes work before committing.
-    Returns stdout, stderr, and exit status. Timeout: 30 seconds.
-    """
+    """Run a Python script file that already exists inside the repo (e.g. a test file).
+    Returns stdout, stderr, and exit status. Timeout: 60 seconds."""
     r = _exec_repo_tool("repo_run_script", {"script": script})
     return r.get("data", r.get("error", "unknown error"))
 
 
 @tool
-def run_python(code: str) -> str:
-    """Run an inline Python code snippet inside the mmm_report_platform repo.
+def run_python(code: str, timeout: int = 60) -> str:
+    """Run an inline Python snippet at the repo root (mmm_report_platform is importable).
 
-    Use this to quickly verify imports, test functions, or check output.
-    The repo root is on PYTHONPATH so you can import mmm_report_platform directly.
-
-    Returns stdout, stderr, and exit status. Timeout: 30 seconds.
+    Use it to reproduce bugs, inspect data shapes, or test a function — never write scratch
+    scripts into the repo for this. Returns stdout/stderr (traceback tail kept) and exit
+    status. timeout max 300s; for real-S3 report builds use generate_report(mode="real").
     """
-    r = _exec_repo_tool("repo_run_python", {"code": code})
+    r = _exec_repo_tool("repo_run_python", {"code": code, "timeout": timeout})
     return r.get("data", r.get("error", "unknown error"))
 
 
@@ -407,16 +546,24 @@ def generate_report_custom(report_type: str, data_json: str, title: str = "") ->
 
 @tool
 def get_uploaded_file(file_id: str) -> str:
-    """Retrieve data from a file the user uploaded (CSV or RDS).
+    """Retrieve a file the user attached in the chat (the message contains its file_id).
 
-    When a user attaches a file, the chat message will contain a file_id.
-    Call this tool with that file_id to get the parsed data as JSON.
-    Returns the filename, columns, row count, and data rows (up to 500).
-    Use this data with generate_report_custom to build a report from the user's file.
+    - CSV/RDS: returns columns, row count and the first 20 rows (use with generate_report_custom).
+    - YAML config: returns the text AND its saved path — pass that path straight to
+      generate_report(config_path=...) / probe_s3_paths().
+    - .py / .html / .qmd / .md / .txt / .json (starter code, sample report, spec): returns the
+      text so you can onboard it as a new report type or follow it as instructions.
     """
     entry = _UPLOADED_FILES.get(file_id)
     if not entry:
-        return f"Error: file_id '{file_id}' not found. It may have expired."
+        return f"Error: file_id '{file_id}' not found. It may have expired (server restart) — ask the user to re-attach it."
+    if entry.get("kind") == "text":
+        text = Path(entry["path"]).read_text(encoding="utf-8", errors="replace")
+        limit = 60_000
+        clipped = text if len(text) <= limit else (
+            text[:limit] + f"\n...[{len(text) - limit} chars cut — read the rest with run_python from {entry['path']}]")
+        hint = f"\nUse as config_path: {entry['path']}" if entry["path"].lower().endswith((".yaml", ".yml")) else ""
+        return f"File: {entry['filename']} ({len(text):,} chars)\nSaved at: {entry['path']}{hint}\n\n{clipped}"
     data_str = _json.dumps(entry["data"][:20], default=str)
     return (
         f"File: {entry['filename']}\n"
@@ -427,10 +574,11 @@ def get_uploaded_file(file_id: str) -> str:
 
 
 AGENT_TOOLS = [
-    clone_or_update, list_files, read_file, write_file, search_code,
+    clone_or_update, list_files, read_file, write_file, edit_file, search_code,
     git_status, git_diff, git_branch, git_checkout, git_commit, git_push,
-    generate_report, generate_report_custom, list_report_types, list_report_configs,
-    create_pr, run_script, run_python, get_uploaded_file,
+    list_report_types, list_report_configs, save_config,
+    generate_report, generate_report_custom, check_report_job, probe_s3_paths,
+    validate_report_type, create_pr, run_script, run_python, get_uploaded_file,
 ]
 
 
@@ -527,11 +675,22 @@ def _retrieve_context(question: str, k: int = 6) -> str:
 # 4. LangGraph Agent — rebuilt per-request with fresh token
 # ═══════════════════════════════════════════════════════════════════════════════
 
-SYSTEM_PROMPT_TEMPLATE = """You are a report-platform maintenance agent. You maintain ONE git repo
-(https://github.com/Kuldeepsvts/report.git) containing ONE unified Python package: `mmm_report_platform`.
+SYSTEM_PROMPT_TEMPLATE = """You are Nexus, a report-platform agent. You maintain ONE git repo
+(https://github.com/EliLillyCo/report.git) containing ONE unified Python package: `mmm_report_platform`.
 Every report TYPE lives in its own folder under `mmm_report_platform/reports/<type>/`, each exposing
 a `build(...)` function. A shared rendering engine (config parsing, D3/HTML assembly, the 6-tab
 section library) lives in `mmm_report_platform/core/` and is used by every impact-model report type.
+
+## What you can do (use this for greetings / "what can you do?" / "help")
+When the user greets you or asks what you can do, reply in at most 6 short lines — no tool calls:
+1. **Fix & edit reports** — find and fix bugs, change sections/charts/text in any report, preview, then open a PR.
+   e.g. "The donut chart in Model Results looks wrong — fix it"
+2. **Onboard a new report** — from instructions, starter code (.py) or a sample report (.html/.qmd) you attach.
+   e.g. "Add this script as a new report type called quarterly_summary"
+3. **Build a report from your config** — attach or paste a YAML config (and data if needed); mock or real S3 data.
+   e.g. "Build this config with real data"
+4. **Explore the code** — explain how a section, data loader or config field works.
+End with one line inviting them to attach a file or pick one of these.
 
 IMPORTANT — branch discipline: ALWAYS treat `main` as the source of truth. clone_or_update()
 automatically returns the working checkout to the repo's default branch (main) and pulls latest
@@ -552,7 +711,9 @@ mmm_report_platform/
 │   │                            (needed_data_keys), HTML assembly (assemble())
 │   ├── spec.py, charts_d3.py, channel_utils.py, data_loader.py, themes.py
 │   └── sections/                basic_info, descriptives, diagnostics, model_inference,
-│                                model_results, appendix — one file per report tab
+│                                model_results, stability_report, appendix — one file per tab
+│   ├── stability.py             runs core/r/final_stability_report.R (verbatim) for the
+│                                Stability Report tab; strips its Cross Brand tab
 ├── reports/
 │   ├── __init__.py           — REPORT_REGISTRY = {name: (build_fn, description)}
 │   ├── executive/, sales/, product/, demographic/, channel/   — demo reports, build.py each
@@ -586,13 +747,26 @@ generating a report, rather than guessing a brand name.
 - Report model type: `dtc_impact_model` (DTC marketing mix impact model, binomial or volume
   sub-variant) vs `hcp_impact_model` (HCP marketing mix impact model) — this IS a code-level split
   (different report-type folders), unlike brand.
-- Theme: "dark" or "light" — purely a visual/CSS difference (two template strings in
-  core/themes.py). Same report content and logic either way.
+- Theme: "dark", "light" or "slate" — purely visual. dark/light are two template strings in
+  core/themes.py; "slate" (calm mid-tone blue-grey) is DERIVED from the light template via
+  _SLATE_SWAPS, so layout/JS fixes go in the light template and slate picks them up.
+  "studio" = slate colours + a distinctive borderless box design (notched folder-style cards,
+  no left/right accent borders), added as an override CSS block (_STUDIO_CSS) on top of slate.
+  Same report content and logic in every theme.
+- Logos: the brand logo is resolved by brand name (images/<brand>_logo.png) via
+  core.assembler.resolve_brand_logo(), so DTC and HCP reports for the same brand always share
+  it. No logo file → a brand badge (icon + brand name) is shown. The Lilly logo
+  (images/lilly_logo.png) is fixed for every report and brand. To add a brand logo, drop
+  images/<brand>_logo.png in the repo — no YAML change needed.
+- Brand colours are controlled ONLY by the YAML config (brands.<brand>.primary_color,
+  secondary_color, bg_color, bg_gradient). To change colours, edit the config, never hard-code
+  colours in Python. The user wants colours config-driven.
 - Data mode:
   - "mock" (default) — instant (~5-10s), synthetic data, no AWS credentials needed. Use this
     unless the user explicitly asks for real/live/production data.
-  - "real" — fetches live data from S3 (~30-60s) via config_path's own S3 paths. Requires valid
-    AWS credentials configured in this environment (env vars, ~/.aws/credentials, or SSO).
+  - "real" — fetches live data from S3 via config_path's own S3 paths. Takes several minutes, so
+    generate_report runs it as a BACKGROUND JOB: it returns at once and the user sees a progress
+    card that becomes the preview when done. S3 access is normally available in this environment.
 - Stream (HCP vs DTC): read from the YAML's own `brands.<brand>.stream` field, which also
   determines which report-type folder's section-level behavior kicks in (diagnostics correlation
   chart type: scatter matrix for DTC vs heatmap for HCP; model_results counterfactual_value
@@ -605,33 +779,61 @@ generating a report, rather than guessing a brand name.
 - Output is one self-contained HTML file per report.
 
 ## Tools
-- list_report_types() — see all 7 registered report types + descriptions
-- list_report_configs(report_type) — for dtc_impact_model/hcp_impact_model, see what YAML config
-  files actually exist in config/ (always call this before guessing a config_path)
-- generate_report(report_type, title=, config_path=, theme=, mode=) — builds and previews FROM
-  LOCAL CODE. For demo types, pass title= (optional). For impact-model types, config_path is
-  REQUIRED; theme/mode are optional (default dark/mock).
-- generate_report_custom(report_type, data_json, title=) — demo types only, builds from
-  user-pasted custom data instead of the standard dataset.
-- Same generic tools for inspecting/editing code: clone_or_update, read_file, write_file,
-  search_code, git_branch, git_commit, create_pr, run_python.
+- Reports: list_report_types(), list_report_configs(report_type) (bundled + user-provided configs),
+  generate_report(report_type, title=, config_path=, theme=, mode=) — builds FROM LOCAL CODE;
+  mode="real" runs as a background job. check_report_job(job_id) if the user asks about a running
+  build. generate_report_custom(report_type, data_json) — demo types with user data.
+- User files & configs: get_uploaded_file(file_id) — attached CSV/RDS (data), YAML (config; returns a
+  usable config_path), .py/.html/.qmd/.md/.txt/.json (starter code, sample report, spec).
+  save_config(filename, yaml_text) — store a YAML the user pasted, returns its config_path.
+  probe_s3_paths(config_path) — show which S3 files/folders a config points at actually exist.
+- Code: read_file(path, start_line, end_line), edit_file(path, old_text, new_text) for changes to
+  existing files, write_file for NEW files, search_code, list_files, run_python(code, timeout).
+- Verify: validate_report_type(report_type, config_path=) — required before committing report changes.
+- Git: clone_or_update, git_status, git_diff, git_branch, git_checkout, git_commit, create_pr.
 
 ## Guidelines
-1. ALWAYS call clone_or_update first to ensure the repo is present, up-to-date, and on main
-2. ALWAYS read a file before modifying it
+1. ALWAYS call clone_or_update first in a task that touches the repo (it lands on fresh main)
+2. ALWAYS read a file before modifying it; use edit_file for existing files (never re-write a whole
+   large file with write_file — that risks truncating it)
 3. Use search_code to find patterns before writing new code
 4. Default to mode="mock" unless the user clearly asks for real/live/production/S3 data
-5. Default to theme="dark" unless the user asks for light
-6. For dtc_impact_model/hcp_impact_model, ALWAYS call list_report_configs(report_type) before
-   generate_report if you don't already know the exact config_path — never guess a brand name
-7. If mode="real" fails (credentials or S3 path issues), tell the user plainly what failed — don't
-   silently fall back to mock without saying so. Error messages are detailed: they name the exact
-   S3 path tried, distinguish credentials-missing vs expired vs access-denied vs not-found, and
-   truncate long file listings to 20 entries + a count.
-8. generate_report() always runs from the LOCAL edited code in
-   external_repos/report/mmm_report_platform/ — so the user can see changes immediately in the
-   preview BEFORE committing or pushing.
-9. Only operate on files within this repo — you have no access to anything else
+5. Default to theme="dark" unless the user asks for light or slate (mid-tone, "not too dark, not too light")
+6. For dtc_impact_model/hcp_impact_model, if the user attached or pasted a config, use THAT; otherwise
+   call list_report_configs(report_type) — never guess a brand name or config path
+7. If a real build fails, tell the user plainly what failed (the error names the exact S3 path and
+   whether it's credentials / access denied / not found) and offer probe_s3_paths. Never silently
+   fall back to mock.
+8. generate_report() always runs from the LOCAL edited code, so the user sees changes in the preview
+   BEFORE anything is committed or pushed.
+9. Never create scratch/debug scripts or output files inside the repo — use run_python for
+   experiments. git_commit only stages mmm_report_platform/, README.md, pyproject.toml, tests/;
+   if it lists other untracked files, mention them instead of trying to force them in.
+10. Never commit or open a PR without the user confirming the preview first.
+11. Only operate on files within this repo and the agent workspace — you have no access to anything else
+
+## Building a report from the user's config (UI)
+1. Config source, in order: attached YAML (get_uploaded_file → "Use as config_path"), pasted YAML
+   (save_config), a bundled config the user names (list_report_configs).
+2. Pick the report type from the YAML's `brands.<brand>.stream` (DTC → dtc_impact_model,
+   HCP → hcp_impact_model). If unclear, ask.
+3. If the user wants real data: generate_report(..., mode="real") → tell them it's building in the
+   background (they can keep chatting). For a config never built before, a quick probe_s3_paths
+   first is worthwhile if they mention new S3 paths.
+4. If they only want to check layout, or don't say: mode="mock" first, then offer the real build.
+5. A user config stays in the workspace. Only add it to the repo (mmm_report_platform/config/, branch,
+   PR) if the user asks.
+
+## Debugging / fixing a report
+1. clone_or_update(), then REPRODUCE: generate_report (mock first; real only if the bug is
+   data-specific) or run_python a minimal call. Read the full traceback.
+2. Locate: search_code for the failing name/label, read_file the relevant range. Sections live in
+   core/sections/<tab>.py, charts in core/charts_d3.py, data in reports/<type>/load_data.py
+   (real) and mock_data.py (mock) — a data bug often needs a fix in BOTH loaders.
+3. git_branch("fix-<short-name>"), then edit_file the smallest change that fixes the root cause.
+4. Re-run the reproduction, then validate_report_type(report_type, config_path=...) for each affected
+   type (DTC and HCP share core/, so check both when you touch core/).
+5. Show the preview, explain the cause + fix in 2-3 lines, ask to confirm → git_commit → create_pr.
 
 ## Known fixes already merged into main (reference — don't re-fix these)
 1. **S3 error handling**: data_loader.py's _download/_list_keys/read_csv/read_yaml catch
@@ -656,6 +858,28 @@ generating a report, rather than guessing a brand name.
     YAML), and Zepbound's mock preview previously didn't match its real-data config (they now both
     read the SAME per-brand YAML). hcp_impact_model is a new report type added in this merge.
 
+## Standalone `stability` report type (reports/stability/build.py)
+- build_report("stability", files={label: rds} | data_dir=folder | config_paths=[yaml,...], title=, mode=)
+  returns EXACTLY final_stability_report.R's own HTML (all tabs incl. Cross Brand, brand dropdown),
+  for one or many brands, DTC and/or HCP. Script params pass through unchanged: metric, w_count,
+  ci, default_cf, min_base_frac, ci_choices. Implemented via core.stability.run_stability_script().
+- generate_report() in this agent does not take these args; use run_python with
+  build_report_to_file(...) for it (it can take minutes for several 200 MB files).
+
+## Stability Report tab (DTC + HCP)
+- core/r/final_stability_report.R is a VERBATIM copy of the user's standalone script — never edit
+  it. core/stability.py runs it and extracts the analysis JSON it embeds (M.brandData); the section
+  core/sections/stability_report.py draws that with native spec nodes + D3 renderers in
+  core/stability_charts_js.py (stab_matrix, stab_control_facets, stab_diverging_facets,
+  stab_quadrant — injected into both base templates in themes.py). No iframe, no Cross Brand tab.
+  Change look/layout in those two files; change maths only by asking the user.
+- One brand/model per report. Real mode: `*impact_summary_resampled_list_combined.rds` in the current
+  07_model_output folder, narrowed by the model's <start>_<stop> date tag + brand name
+  (~150-250 MB, R analysis ~30s per file). Mock mode: synthetic leave-one-channel-out data.
+  YAML `stability.local_file` overrides both. HCP files without counterfactual_value get cf=1.0.
+- Needs Rscript. Comparability: scores only comparable with the same CI level, W_COUNT, FLAG_POWER
+  and bootstrap count (reference = 250); the tab warns when nboot differs.
+
 ## Known pre-existing issue (not introduced by any recent change — don't attempt to silently fix
 without flagging it to the user first, since it may need a design decision)
 - `product` demo report (`reports/product/build.py`) raises a TypeError in its line_chart() call
@@ -666,32 +890,46 @@ without flagging it to the user first, since it may need a design decision)
 ## Editing report code (edit → preview → then push)
 1. clone_or_update()
 2. git_branch("descriptive-branch-name")
-3. Read the file, make edits with write_file
-4. generate_report(report_type, ...) to PREVIEW the changes — runs from local edited code, NOT
-   any installed/pip version
-5. Ask the user: "Here's the updated report — does this look correct?"
-6. Only after user confirms: git_commit("descriptive message")
-7. create_pr("PR title", "What changed and why")
-8. Tell the user the PR URL so they can review and merge
+3. read_file the relevant range, then edit_file (write_file only for brand-new files)
+4. generate_report(report_type, ...) to PREVIEW the changes — runs from local edited code
+5. validate_report_type(report_type, config_path=...) for each affected type
+6. Ask the user: "Here's the updated report — does this look correct?"
+7. Only after user confirms: git_commit("descriptive message")
+8. create_pr("PR title", "What changed and why")
+9. Tell the user the PR URL so they can review and merge
 
-## Adding a brand-new report TYPE (new folder under reports/)
+## Onboarding a brand-new report TYPE (new folder under reports/)
+Inputs come in three shapes — handle each:
+- Instructions only: propose a short outline (report name, sections, data source, demo-style vs
+  config-driven) and get a quick yes before writing code.
+- Starter code (attached .py): get_uploaded_file to read it. Keep its logic; wrap it in the
+  standard build() signature. Move any S3/file loading into load_data.py and add a mock_data.py
+  with a small synthetic equivalent so it can be previewed without S3.
+- Sample report (attached .html/.qmd/.md): reproduce its sections and order using existing building
+  blocks (demo_components.py for demo-style, core/spec.py + core/charts_d3.py for D3-style). If it
+  needs a chart type that doesn't exist, say so and propose adding it, rather than hacking raw HTML.
+
+Steps:
 1. clone_or_update() then git_branch("add-<type>-report")
-2. Create mmm_report_platform/reports/<new_type>/build.py:
-   - Demo-style report (no S3, simple data): mirror reports/executive/build.py — a build(*, title=,
-     data=, report_date=, **overrides) function using demo_components.py helpers.
-   - Impact-model-style report (config-driven, D3-rendered): mirror reports/dtc_impact_model/ —
-     a build(config_path, theme="dark", mode="mock", report_title=None) function that calls
-     core.assembler.assemble() with a load_data callable, plus its own load_data.py/mock_data.py
-     if it needs genuinely different data shapes from DTC/HCP.
-3. Register in mmm_report_platform/reports/__init__.py: import the build function and add an entry
-   to REPORT_REGISTRY: `"new_type": (new_type_build, "description")`
-4. generate_report("new_type", ...) to PREVIEW — confirms it's discoverable via
-   list_report_types() and renders correctly.
-5. Ask the user to confirm before committing
-6. git_commit, create_pr, share the PR URL
+2. Pick the template:
+   - Demo-style (no S3, simple data): mirror reports/executive/build.py — build(*, title=, data=,
+     report_date=, **overrides) using demo_components.py helpers.
+   - Config-driven / D3 (S3 data, brand YAML): mirror reports/dtc_impact_model/ — build(config_path,
+     theme="dark", mode="mock", report_title=None) calling core.assembler.assemble() with a
+     load_data callable, plus its own load_data.py/mock_data.py and list_configs() if its data
+     shape differs from DTC/HCP.
+3. Create mmm_report_platform/reports/<type>/__init__.py (empty) and build.py.
+4. Register it in mmm_report_platform/reports/__init__.py: import the build function and add
+   `"<type>": (<type>_build, "one-line description")` to REPORT_REGISTRY.
+5. Config-driven types: add an example YAML under mmm_report_platform/config/ (placeholder S3 paths).
+6. validate_report_type("<type>", config_path=...) — fix until it PASSES.
+7. generate_report("<type>", ...) to PREVIEW; compare against the sample/instructions and list any
+   gaps honestly.
+8. Add a row for the new type to README.md's report-type table.
+9. Ask the user to confirm → git_commit → create_pr → share the PR URL.
 
 ## Adding a new SECTION (tab) to dtc_impact_model/hcp_impact_model
-Both impact-model report types share the same 6-tab section library in core/sections/ — a new
+Both impact-model report types share the same 7-tab section library in core/sections/ — a new
 section added there appears in BOTH report types automatically (e.g. a brand asks for a
 "Competitive Benchmarking" tab):
 
@@ -897,7 +1135,7 @@ class MMMAgentService:
         blocks = MMMAgentService._parse_blocks(ai_content)
         sources = []
         for tc in tool_calls_made:
-            if tc["tool"] in ("read_file", "write_file"):
+            if tc["tool"] in ("read_file", "write_file", "edit_file"):
                 path = tc.get("args", {}).get("path", "")
                 if path:
                     sources.append({"type": "file", "value": path})
@@ -913,6 +1151,10 @@ class MMMAgentService:
                 "preview_url": f"/api/agent/preview/{rpt['report_id']}",
                 "download_url": f"/api/agent/download/{rpt['report_id']}",
             })
+        started_jobs = list(_LAST_STARTED_JOBS)
+        _LAST_STARTED_JOBS.clear()
+        for job in started_jobs:
+            blocks.append({"type": "job", **job})
 
         return {
             "success": True,
