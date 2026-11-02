@@ -22,6 +22,13 @@ def cache_report(html: str) -> str:
     return report_id
 
 
+def _html_only(out: str) -> str:
+    """Report builders print progress lines to stdout before the HTML; keep only the document."""
+    low = out.lower()
+    starts = [i for i in (low.find("<!doctype"), low.find("<html")) if i >= 0]
+    return out[min(starts):] if starts else out
+
+
 def run_build(code: str, timeout: int) -> tuple[str, str]:
     """Run report-building code in a subprocess at the repo root. Returns (html, error)."""
     try:
@@ -37,7 +44,7 @@ def run_build(code: str, timeout: int) -> tuple[str, str]:
         return "", err[-6000:] if len(err) > 6000 else err
     if not result.stdout.strip():
         return "", f"Empty output. stderr: {result.stderr.strip()[-2000:]}"
-    return result.stdout, ""
+    return _html_only(result.stdout), ""
 
 
 def start_job(code: str, report_type: str, label: str) -> str:

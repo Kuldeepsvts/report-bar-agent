@@ -408,6 +408,85 @@ def check_report_job(job_id: str) -> str:
             f"The user's progress card already turned into Preview/Download.")
 
 
+def _resolve_stability_path(p: str) -> tuple[str, str]:
+    """Stability inputs may live anywhere on this machine (e.g. ~/Desktop/RND/...), unlike configs."""
+    path = Path(p).expanduser()
+    if not path.is_absolute():
+        path = (EXTERNAL_REPO_DIR / p)
+    if not path.exists():
+        return "", f"Not found: {p}"
+    return str(path.resolve()), ""
+
+
+@tool
+def generate_stability_report(
+    data_dir: str = "",
+    files_json: str = "",
+    config_paths: str = "",
+    title: str = "",
+    mode: Literal["s3", "mock"] = "s3",
+) -> str:
+    """Build the standalone Channel Interaction & Stability Report (final_stability_report.R, exact output:
+    all tabs incl. Cross Brand, brand dropdown) for one or many brands, DTC and/or HCP — and show it in
+    the UI preview. ALWAYS use this tool for stability reports (never run_python), otherwise the user
+    gets no Preview/Download buttons.
+
+    Give ONE of:
+      data_dir:     folder of *_impact_summary_resampled_list_combined.rds files (one per brand/model),
+                    e.g. "/Users/.../RND/Q2_2026_Data". Labels come from file names ("Mounjaro Binomial").
+      files_json:   JSON object {"Label": "/path/file.rds", ...} — order = dropdown order.
+      config_paths: comma-separated brand YAML paths; each file is read from that config's
+                    07_model_output on S3 (mode="s3") or its stability.local_file.
+    Runs in the background (several 200 MB files take a few minutes): returns immediately and the user
+    sees a progress card that becomes Preview/Download. Show the user the inputs you used.
+    """
+    kwargs: dict = {"title": title or None, "mode": mode}
+    if data_dir:
+        p, err = _resolve_stability_path(data_dir)
+        if err:
+            return f"Error: data_dir {err}"
+        kwargs["data_dir"] = p
+    if files_json:
+        try:
+            files = _json.loads(files_json)
+        except _json.JSONDecodeError as e:
+            return f"Error: files_json is not valid JSON — {e}"
+        resolved = {}
+        for label, fp in files.items():
+            p, err = _resolve_stability_path(fp)
+            if err:
+                return f"Error: file for {label!r} {err}"
+            resolved[label] = p
+        kwargs["files"] = resolved
+    if config_paths:
+        cps = []
+        for cp in [c.strip() for c in config_paths.split(",") if c.strip()]:
+            p, err = _resolve_config_path(cp)
+            if err:
+                return f"Error: {err}"
+            cps.append(p)
+        kwargs["config_paths"] = cps
+    if not any(k in kwargs for k in ("data_dir", "files", "config_paths")):
+        return "Error: give data_dir, files_json or config_paths."
+    err = _ensure_repo()
+    if err:
+        return f"Error: {err}"
+
+    code = (
+        "import sys, json; sys.path.insert(0, '.'); "
+        "from mmm_report_platform import build_report; "
+        f"kw = json.loads({_json.dumps(kwargs)!r}); "
+        "html = build_report('stability', **kw); sys.stdout.write(html)"
+    )
+    what = (Path(kwargs['data_dir']).name if "data_dir" in kwargs
+            else ", ".join(kwargs.get("files", {}) or [Path(c).stem for c in kwargs.get("config_paths", [])]))
+    label = f"Stability report · {what}"
+    job_id = report_jobs.start_job(code, "stability", label)
+    _LAST_STARTED_JOBS.append({"job_id": job_id, "label": label, "report_type": "stability"})
+    return (f"Started background stability build job {job_id} ({label}). The user sees a live progress card "
+            f"that turns into Preview/Download when finished (about 30-40 s per brand file).")
+
+
 @tool
 def probe_s3_paths(config_path: str) -> str:
     """Check which S3 folders/files a config points at actually exist (model config YAMLs,
@@ -578,7 +657,7 @@ AGENT_TOOLS = [
     git_status, git_diff, git_branch, git_checkout, git_commit, git_push,
     list_report_types, list_report_configs, save_config,
     generate_report, generate_report_custom, check_report_job, probe_s3_paths,
-    validate_report_type, create_pr, run_script, run_python, get_uploaded_file,
+    validate_report_type, generate_stability_report, create_pr, run_script, run_python, get_uploaded_file,
 ]
 
 
@@ -753,6 +832,11 @@ generating a report, rather than guessing a brand name.
   "studio" = slate colours + a distinctive borderless box design (notched folder-style cards,
   no left/right accent borders), added as an override CSS block (_STUDIO_CSS) on top of slate.
   Same report content and logic in every theme.
+  Every DTC/HCP report has an in-report Theme switcher (palette button in the header; built by
+  core/theme_switcher.py, which embeds all themes in one HTML). theme= is only the theme the report
+  opens in; `#theme=<name>` in the URL opens a specific one; assemble(..., theme_switcher=False)
+  / CLI --single-theme gives a smaller single-theme file. A new theme only needs adding to THEMES
+  (and a label in theme_switcher.THEME_LABELS) to appear in the switcher.
 - Logos: the brand logo is resolved by brand name (images/<brand>_logo.png) via
   core.assembler.resolve_brand_logo(), so DTC and HCP reports for the same brand always share
   it. No logo file → a brand badge (icon + brand name) is shown. The Lilly logo
@@ -787,6 +871,8 @@ generating a report, rather than guessing a brand name.
   usable config_path), .py/.html/.qmd/.md/.txt/.json (starter code, sample report, spec).
   save_config(filename, yaml_text) — store a YAML the user pasted, returns its config_path.
   probe_s3_paths(config_path) — show which S3 files/folders a config points at actually exist.
+- Stability: generate_stability_report(data_dir= | files_json= | config_paths=, title=) — standalone
+  stability report for one or many brands (DTC/HCP), with preview.
 - Code: read_file(path, start_line, end_line), edit_file(path, old_text, new_text) for changes to
   existing files, write_file for NEW files, search_code, list_files, run_python(code, timeout).
 - Verify: validate_report_type(report_type, config_path=) — required before committing report changes.
@@ -863,8 +949,9 @@ generating a report, rather than guessing a brand name.
   returns EXACTLY final_stability_report.R's own HTML (all tabs incl. Cross Brand, brand dropdown),
   for one or many brands, DTC and/or HCP. Script params pass through unchanged: metric, w_count,
   ci, default_cf, min_base_frac, ci_choices. Implemented via core.stability.run_stability_script().
-- generate_report() in this agent does not take these args; use run_python with
-  build_report_to_file(...) for it (it can take minutes for several 200 MB files).
+- In this agent ALWAYS use the generate_stability_report tool (data_dir / files_json / config_paths) —
+  it runs as a background job and gives the user Preview/Download. Never build it with run_python
+  (no preview card appears that way).
 
 ## Stability Report tab (DTC + HCP)
 - core/r/final_stability_report.R is a VERBATIM copy of the user's standalone script — never edit
